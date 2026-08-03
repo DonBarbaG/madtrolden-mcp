@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 15 / 34 done — ~44%** (task-count, each item = 1; last updated 2026-08-03)
+**Progress: 19 / 34 done — ~56%** (task-count, each item = 1; last updated 2026-08-03)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -33,10 +33,10 @@ First session, no own velocity history yet. Phase 0 took ~0.5h wall. Remaining 2
 
 ## PHASE 2 — Profiles (client-held state)
 
-- [ ] 16. Profile schema + zod [me] ⏾ — DataStore schema as zod, extended fields (§6) validated.
-- [ ] 17. `import_profile` / `export_profile` [me] ⏾ — RAM cache `Map<account,{profile,updatedAt}>` TTL 24h; tool descriptions teach client AIs the durability story.
-- [ ] 18. All tools read cached profile [me] ⏾ — replace `~/.tilbudstrolden.json` file store; grep-proof: no fs writes outside /tmp.
-- [ ] 19. Phase-2 acceptance [me] ⏾ — import → plan → export round-trip test; cold-start + re-import identical behavior.
+- [x] 16. Profile schema + zod [me] ⏾ — DataStore schema as zod, extended fields (§6) validated.
+- [x] 17. `import_profile` / `export_profile` [me] ⏾ — RAM cache `Map<account,{profile,updatedAt}>` TTL 24h; tool descriptions teach client AIs the durability story.
+- [x] 18. All tools read cached profile [me] ⏾ — replace `~/.tilbudstrolden.json` file store; grep-proof: no fs writes outside /tmp.
+- [x] 19. Phase-2 acceptance [me] ⏾ — import → plan → export round-trip test; cold-start + re-import identical behavior.
 
 ## PHASE 3 — Budget + nutrition
 
