@@ -68,7 +68,7 @@ export interface DataStore {
 
 // --- Zod schema for runtime validation on load ---
 
-const DataStoreSchema = z.object({
+export const DataStoreSchema = z.object({
   household: z
     .object({
       people: z

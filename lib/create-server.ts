@@ -6,6 +6,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerPrompts } from "./prompts";
 import { registerDealTools } from "./tools/deals";
 import { registerHouseholdTools } from "./tools/household";
+import { registerProfileTools } from "./tools/profile";
 import { registerRecipeTools } from "./tools/recipes";
 import { registerScoringTools } from "./tools/scoring";
 import { registerShoppingTools } from "./tools/shopping";
@@ -55,8 +56,9 @@ Set country via update_household. Search terms must be in the local language (Da
 - log_meal / get_meal_history: track cooked meals to avoid repetition
 - log_spend / get_spend_log: grocery budget tracking
 
-### Account
+### Account & profile persistence
 - whoami: which account you are connected as, and whether a profile is loaded
+- export_profile / import_profile: the durability story — the server stores nothing, the client keeps the blob between sessions
 
 ## Remote-server state model (IMPORTANT)
 
@@ -93,5 +95,6 @@ export function registerAll(server: McpServer): void {
   registerScoringTools(server);
   registerTrackingTools(server);
   registerShoppingTools(server);
+  registerProfileTools(server);
   registerWhoamiTool(server);
 }
