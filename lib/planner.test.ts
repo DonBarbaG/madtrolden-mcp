@@ -249,3 +249,103 @@ describe("planWeek", () => {
     for (const count of proteins.values()) expect(count).toBeLessThanOrEqual(2);
   });
 });
+
+describe("planWeek meal types + meal prep (Phase 4)", () => {
+  function makeMealPool(): EnrichedRecipe[] {
+    const pool: EnrichedRecipe[] = [];
+    const proteins = ["vegetarian", "chicken", "beef", "fish", "pork"];
+    for (let i = 0; i < 8; i++) {
+      const dinner = makeEnriched({
+        name: `Aftensmad${i}`,
+        cost: 30 + i * 8,
+        kcal: 500 + i * 40,
+        protein: proteins[i % proteins.length],
+        cuisine: ["danish", "italian", "asian", "mexican"][i % 4],
+      });
+      dinner.recipe.mealType = "dinner";
+      dinner.recipe.batchable = i % 2 === 0;
+      dinner.recipe.keepsDays = i % 2 === 0 ? 3 : 0;
+      pool.push(dinner);
+
+      const lunch = makeEnriched({
+        name: `Frokost${i}`,
+        cost: 15 + i * 4,
+        kcal: 350 + i * 25,
+        protein: proteins[(i + 2) % proteins.length],
+        cuisine: ["danish", "italian", "asian", "mexican"][(i + 1) % 4],
+      });
+      lunch.recipe.mealType = "lunch";
+      lunch.recipe.batchable = i % 2 === 0;
+      lunch.recipe.keepsDays = i % 2 === 0 ? 3 : 0;
+      pool.push(lunch);
+    }
+    return pool;
+  }
+
+  it("fills each slot from the matching meal-type pool", () => {
+    const result = planWeek(makeMealPool(), opts({ meals: ["lunch", "dinner"] }));
+    expect(result).not.toBeNull();
+    for (const day of result?.days ?? []) {
+      expect(day.meals.map((m) => m.mealType)).toEqual(["lunch", "dinner"]);
+      expect(day.meals[0].recipe.recipe.mealType).toBe("lunch");
+      expect(day.meals[1].recipe.recipe.mealType).toBe("dinner");
+    }
+  });
+
+  it("returns null when a requested meal type has no recipes", () => {
+    const result = planWeek(makeMealPool(), opts({ meals: ["breakfast", "dinner"] }));
+    expect(result).toBeNull();
+  });
+
+  it("meal_prep with lunch+dinner: ≤2 cook days when keepsDays allow, portions all accounted for", () => {
+    const result = planWeek(
+      makeMealPool(),
+      opts({ meals: ["lunch", "dinner"], mealPrep: true, cookDays: [1, 4] }),
+    );
+    expect(result).not.toBeNull();
+    expect(result?.cookSchedule).toBeDefined();
+
+    const cookDays = new Set(result?.cookSchedule?.map((b) => b.day));
+    expect(cookDays.size).toBeLessThanOrEqual(2);
+
+    // Every cooked portion appears as a scheduled meal on some day.
+    const totalPortions = result?.cookSchedule?.reduce((s, b) => s + b.portions, 0);
+    const totalMealServings = (result?.days.length ?? 0) * 2 * 2; // days × meals × people
+    expect(totalPortions).toBe(totalMealServings);
+
+    // Each covered day actually serves that block's recipe.
+    for (const block of result?.cookSchedule ?? []) {
+      for (const day of block.covers) {
+        const served = result?.days[day - 1].meals.find((m) => m.mealType === block.mealType);
+        expect(served?.recipe.scored.name).toBe(block.recipeName);
+        expect(served?.cookedOnDay).toBe(block.day);
+        expect(served?.leftover).toBe(day !== block.day);
+      }
+    }
+  });
+
+  it("meal_prep prefers batchable recipes", () => {
+    const result = planWeek(
+      makeMealPool(),
+      opts({ meals: ["dinner"], mealPrep: true, cookDays: [1, 4] }),
+    );
+    for (const block of result?.cookSchedule ?? []) {
+      const recipe = result?.days[block.day - 1].meals.find(
+        (m) => m.mealType === block.mealType,
+      )?.recipe;
+      expect(recipe?.recipe.batchable).toBe(true);
+    }
+  });
+
+  it("meal_prep adds extra cook events (with a note) when keepsDays are too short", () => {
+    const pool = makeMealPool().map((e) => {
+      e.recipe.keepsDays = Math.min(e.recipe.keepsDays ?? 0, 1); // max 2-day coverage
+      return e;
+    });
+    const result = planWeek(pool, opts({ meals: ["dinner"], mealPrep: true, cookDays: [1, 4] }));
+    expect(result).not.toBeNull();
+    const cookDays = new Set(result?.cookSchedule?.map((b) => b.day));
+    expect(cookDays.size).toBeGreaterThan(2);
+    expect(result?.notes.join(" ")).toContain("extra cook event");
+  });
+});

@@ -1,0 +1,323 @@
+{
+  "note": "Starter breakfast + lunch templates for madtrolden — Danish-normal and cheap. Same Recipe schema as the base repo plus mealType/batchable/keepsDays. Seeded together with the 32 default dinners for DK households.",
+  "recipes": [
+    {
+      "name": "Havregrød med æble og kanel",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "breakfast",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Havregryn", "quantity": "120 g", "searchTerms": ["havregryn"], "category": "pantry" },
+        { "name": "Mælk", "quantity": "4 dl", "searchTerms": ["letmælk", "mælk"], "category": "dairy" },
+        { "name": "Æble", "quantity": "1 stk", "searchTerms": ["æbler", "æble"], "category": "produce" },
+        { "name": "Kanel", "quantity": "1 tsk", "searchTerms": ["kanel"], "category": "pantry" }
+      ]
+    },
+    {
+      "name": "Øllebrød-agtig havregrød med banan",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "breakfast",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Havregryn", "quantity": "120 g", "searchTerms": ["havregryn"], "category": "pantry" },
+        { "name": "Banan", "quantity": "2 stk", "searchTerms": ["bananer", "banan"], "category": "produce" },
+        { "name": "Mælk", "quantity": "4 dl", "searchTerms": ["letmælk", "mælk"], "category": "dairy" },
+        { "name": "Honning", "quantity": "2 tsk", "searchTerms": ["honning"], "category": "pantry" }
+      ]
+    },
+    {
+      "name": "Yoghurt med müsli og banan",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "breakfast",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Yoghurt naturel", "quantity": "4 dl", "searchTerms": ["yoghurt", "yoghurt naturel"], "category": "dairy" },
+        { "name": "Müsli", "quantity": "100 g", "searchTerms": ["müsli", "mysli"], "category": "pantry" },
+        { "name": "Banan", "quantity": "1 stk", "searchTerms": ["bananer", "banan"], "category": "produce" }
+      ]
+    },
+    {
+      "name": "Skyr med havregryn og frosne bær",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "breakfast",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Skyr", "quantity": "400 g", "searchTerms": ["skyr"], "category": "dairy" },
+        { "name": "Havregryn", "quantity": "60 g", "searchTerms": ["havregryn"], "category": "pantry" },
+        { "name": "Frosne bær", "quantity": "150 g", "searchTerms": ["frosne bær", "hindbær", "blåbær"], "category": "frozen" }
+      ]
+    },
+    {
+      "name": "Rugbrød med æg og tomat",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "egg",
+      "mealType": "breakfast",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Rugbrød", "quantity": "4 stk", "searchTerms": ["rugbrød"], "category": "bakery" },
+        { "name": "Æg", "quantity": "4 stk", "searchTerms": ["æg"], "category": "dairy" },
+        { "name": "Tomat", "quantity": "1 stk", "searchTerms": ["tomater", "tomat"], "category": "produce" },
+        { "name": "Smør", "quantity": "20 g", "searchTerms": ["smør"], "category": "dairy" }
+      ]
+    },
+    {
+      "name": "Grovboller med ost",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "breakfast",
+      "batchable": true,
+      "keepsDays": 2,
+      "ingredients": [
+        { "name": "Fuldkornsmel", "quantity": "300 g", "searchTerms": ["fuldkornsmel", "grahamsmel"], "category": "pantry" },
+        { "name": "Hvedemel", "quantity": "200 g", "searchTerms": ["hvedemel", "mel"], "category": "pantry" },
+        { "name": "Gær", "quantity": "1 stk", "searchTerms": ["gær"], "category": "pantry" },
+        { "name": "Skiveost", "quantity": "100 g", "searchTerms": ["ost", "skiveost"], "category": "dairy" }
+      ]
+    },
+    {
+      "name": "Æggekage på panden med rugbrød",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "egg",
+      "mealType": "breakfast",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Æg", "quantity": "5 stk", "searchTerms": ["æg"], "category": "dairy" },
+        { "name": "Mælk", "quantity": "1 dl", "searchTerms": ["letmælk", "mælk"], "category": "dairy" },
+        { "name": "Rugbrød", "quantity": "2 stk", "searchTerms": ["rugbrød"], "category": "bakery" },
+        { "name": "Purløg eller forårsløg", "quantity": "1 stk", "searchTerms": ["forårsløg"], "category": "produce" }
+      ]
+    },
+    {
+      "name": "Overnight oats med rosiner",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "breakfast",
+      "batchable": true,
+      "keepsDays": 2,
+      "ingredients": [
+        { "name": "Havregryn", "quantity": "120 g", "searchTerms": ["havregryn"], "category": "pantry" },
+        { "name": "Yoghurt naturel", "quantity": "2 dl", "searchTerms": ["yoghurt"], "category": "dairy" },
+        { "name": "Mælk", "quantity": "2 dl", "searchTerms": ["letmælk", "mælk"], "category": "dairy" },
+        { "name": "Rosiner", "quantity": "40 g", "searchTerms": ["rosiner"], "category": "pantry" }
+      ]
+    },
+    {
+      "name": "Toast med æg og skinke",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "pork",
+      "mealType": "breakfast",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Toastbrød", "quantity": "4 stk", "searchTerms": ["toastbrød", "franskbrød"], "category": "bakery" },
+        { "name": "Æg", "quantity": "2 stk", "searchTerms": ["æg"], "category": "dairy" },
+        { "name": "Kogt skinke", "quantity": "100 g", "searchTerms": ["skinke", "skinkepålæg"], "category": "meat" },
+        { "name": "Skiveost", "quantity": "50 g", "searchTerms": ["ost", "skiveost"], "category": "dairy" }
+      ]
+    },
+    {
+      "name": "Banangrød (banan-havregrød med peanutbutter)",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "breakfast",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Havregryn", "quantity": "120 g", "searchTerms": ["havregryn"], "category": "pantry" },
+        { "name": "Banan", "quantity": "2 stk", "searchTerms": ["bananer", "banan"], "category": "produce" },
+        { "name": "Peanutbutter", "quantity": "30 g", "searchTerms": ["peanutbutter", "jordnøddesmør"], "category": "pantry" },
+        { "name": "Mælk", "quantity": "4 dl", "searchTerms": ["letmælk", "mælk"], "category": "dairy" }
+      ]
+    },
+    {
+      "name": "Rugbrød med makrel i tomat",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "fish",
+      "mealType": "lunch",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Rugbrød", "quantity": "4 stk", "searchTerms": ["rugbrød"], "category": "bakery" },
+        { "name": "Makrel i tomat", "quantity": "125 g", "searchTerms": ["makrel", "makrel i tomat"], "category": "pantry" },
+        { "name": "Agurk", "quantity": "0.5 stk", "searchTerms": ["agurk"], "category": "produce" },
+        { "name": "Mayonnaise", "quantity": "2 spsk", "searchTerms": ["mayonnaise", "mayo"], "category": "pantry" }
+      ]
+    },
+    {
+      "name": "Rugbrød med leverpostej og rødbede",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "pork",
+      "mealType": "lunch",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Rugbrød", "quantity": "4 stk", "searchTerms": ["rugbrød"], "category": "bakery" },
+        { "name": "Leverpostej", "quantity": "150 g", "searchTerms": ["leverpostej"], "category": "meat" },
+        { "name": "Syltede rødbeder", "quantity": "100 g", "searchTerms": ["rødbeder", "syltede rødbeder"], "category": "pantry" }
+      ]
+    },
+    {
+      "name": "Rugbrød med hytteost og grønt",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "lunch",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Rugbrød", "quantity": "4 stk", "searchTerms": ["rugbrød"], "category": "bakery" },
+        { "name": "Hytteost", "quantity": "200 g", "searchTerms": ["hytteost"], "category": "dairy" },
+        { "name": "Agurk", "quantity": "0.5 stk", "searchTerms": ["agurk"], "category": "produce" },
+        { "name": "Peberfrugt", "quantity": "1 stk", "searchTerms": ["peberfrugt"], "category": "produce" }
+      ]
+    },
+    {
+      "name": "Æggesalat-madder",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "egg",
+      "mealType": "lunch",
+      "batchable": true,
+      "keepsDays": 1,
+      "ingredients": [
+        { "name": "Æg", "quantity": "4 stk", "searchTerms": ["æg"], "category": "dairy" },
+        { "name": "Mayonnaise", "quantity": "3 spsk", "searchTerms": ["mayonnaise", "mayo"], "category": "pantry" },
+        { "name": "Karry", "quantity": "1 tsk", "searchTerms": ["karry"], "category": "pantry" },
+        { "name": "Rugbrød", "quantity": "4 stk", "searchTerms": ["rugbrød"], "category": "bakery" }
+      ]
+    },
+    {
+      "name": "Tunsalat med pasta",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "fish",
+      "mealType": "lunch",
+      "batchable": true,
+      "keepsDays": 2,
+      "ingredients": [
+        { "name": "Pasta", "quantity": "200 g", "searchTerms": ["pasta", "pastaskaller"], "category": "pantry" },
+        { "name": "Tun i vand", "quantity": "185 g", "searchTerms": ["tun", "tun i vand"], "category": "pantry" },
+        { "name": "Majs", "quantity": "150 g", "searchTerms": ["majs", "dåsemajs"], "category": "pantry" },
+        { "name": "Creme fraiche", "quantity": "1 dl", "searchTerms": ["creme fraiche"], "category": "dairy" }
+      ]
+    },
+    {
+      "name": "Linsesuppe (madpakke-venlig)",
+      "servings": 4,
+      "complexity": "medium",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "lunch",
+      "batchable": true,
+      "keepsDays": 3,
+      "ingredients": [
+        { "name": "Røde linser", "quantity": "300 g", "searchTerms": ["røde linser", "linser"], "category": "pantry" },
+        { "name": "Gulerødder", "quantity": "300 g", "searchTerms": ["gulerødder", "gulerod"], "category": "produce" },
+        { "name": "Løg", "quantity": "2 stk", "searchTerms": ["løg"], "category": "produce" },
+        { "name": "Dåsetomater", "quantity": "400 g", "searchTerms": ["dåsetomater", "hakkede tomater"], "category": "pantry" },
+        { "name": "Grøntsagsbouillon", "quantity": "1 l", "searchTerms": ["bouillon", "grøntsagsbouillon"], "category": "pantry" }
+      ]
+    },
+    {
+      "name": "Pastasalat med kylling og pesto",
+      "servings": 4,
+      "complexity": "quick",
+      "cuisineType": "italian",
+      "proteinType": "chicken",
+      "mealType": "lunch",
+      "batchable": true,
+      "keepsDays": 2,
+      "ingredients": [
+        { "name": "Pasta", "quantity": "300 g", "searchTerms": ["pasta", "fusilli"], "category": "pantry" },
+        { "name": "Kyllingebryst", "quantity": "300 g", "searchTerms": ["kyllingebryst", "kyllingefilet", "kylling"], "category": "meat" },
+        { "name": "Pesto", "quantity": "100 g", "searchTerms": ["pesto"], "category": "pantry" },
+        { "name": "Tomat", "quantity": "2 stk", "searchTerms": ["tomater", "tomat"], "category": "produce" }
+      ]
+    },
+    {
+      "name": "Omelet med rester-grønt",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "egg",
+      "mealType": "lunch",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Æg", "quantity": "5 stk", "searchTerms": ["æg"], "category": "dairy" },
+        { "name": "Peberfrugt", "quantity": "1 stk", "searchTerms": ["peberfrugt"], "category": "produce" },
+        { "name": "Løg", "quantity": "1 stk", "searchTerms": ["løg"], "category": "produce" },
+        { "name": "Skiveost", "quantity": "50 g", "searchTerms": ["ost", "skiveost"], "category": "dairy" }
+      ]
+    },
+    {
+      "name": "Kartoffelmadder med ristede løg",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "danish",
+      "proteinType": "vegetarian",
+      "mealType": "lunch",
+      "batchable": false,
+      "keepsDays": 0,
+      "ingredients": [
+        { "name": "Rugbrød", "quantity": "4 stk", "searchTerms": ["rugbrød"], "category": "bakery" },
+        { "name": "Kartofler", "quantity": "300 g", "searchTerms": ["kartofler", "kogekartofler"], "category": "produce" },
+        { "name": "Mayonnaise", "quantity": "2 spsk", "searchTerms": ["mayonnaise", "mayo"], "category": "pantry" },
+        { "name": "Løg", "quantity": "1 stk", "searchTerms": ["løg"], "category": "produce" }
+      ]
+    },
+    {
+      "name": "Kyllingesalat-wraps",
+      "servings": 2,
+      "complexity": "quick",
+      "cuisineType": "mexican",
+      "proteinType": "chicken",
+      "mealType": "lunch",
+      "batchable": true,
+      "keepsDays": 1,
+      "ingredients": [
+        { "name": "Tortillas", "quantity": "4 stk", "searchTerms": ["tortilla", "tortilla wraps", "wraps"], "category": "pantry" },
+        { "name": "Kyllingebryst", "quantity": "250 g", "searchTerms": ["kyllingebryst", "kyllingefilet", "kylling"], "category": "meat" },
+        { "name": "Icebergsalat", "quantity": "0.5 stk", "searchTerms": ["icebergsalat", "salat"], "category": "produce" },
+        { "name": "Creme fraiche", "quantity": "1 dl", "searchTerms": ["creme fraiche"], "category": "dairy" }
+      ]
+    }
+  ]
+}

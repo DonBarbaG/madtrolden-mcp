@@ -42,6 +42,12 @@ export interface Recipe {
   complexity: "quick" | "medium" | "slow";
   cuisineType: string; // asian, danish, italian, mexican, etc.
   proteinType: string; // chicken, beef, pork, fish, vegetarian, etc.
+  /** Which meal slot this recipe fits; absent = dinner (base-repo recipes). */
+  mealType?: "breakfast" | "lunch" | "dinner";
+  /** Opt-in: suitable for batch cooking (meal-prep mode prefers these). */
+  batchable?: boolean;
+  /** How many days leftovers keep in the fridge (used by meal-prep mode). */
+  keepsDays?: number;
 }
 
 export interface MealLogEntry {
@@ -110,6 +116,9 @@ export const DataStoreSchema = z.object({
         complexity: z.enum(["quick", "medium", "slow"]),
         cuisineType: z.string(),
         proteinType: z.string(),
+        mealType: z.enum(["breakfast", "lunch", "dinner"]).optional(),
+        batchable: z.boolean().optional(),
+        keepsDays: z.number().min(0).optional(),
       }),
     )
     .default([]),

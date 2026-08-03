@@ -23,11 +23,33 @@ function formatDays(result: PlanResult, currency: string): string[] {
     const parts = day.meals.map((m) => {
       const r = m.recipe;
       const kcal = r.nutrition.perServing ? ` · ~${r.nutrition.perServing.kcal} kcal/pers` : "";
-      return `${m.mealType}: ${r.scored.name} (~${Math.round(r.fullCost)} ${currency}${kcal})`;
+      const leftover = m.leftover ? ` (rester fra dag ${m.cookedOnDay})` : "";
+      return `${m.mealType}: ${r.scored.name}${leftover} (~${Math.round(r.fullCost)} ${currency}${kcal})`;
     });
     const dayKcal =
       day.kcalPerPerson !== null ? ` — dag i alt ~${day.kcalPerPerson} kcal/pers` : "";
     lines.push(`Dag ${day.day}: ${parts.join(" · ")}${dayKcal}`);
+  }
+  return lines;
+}
+
+function formatCookSchedule(result: PlanResult): string[] {
+  if (!result.cookSchedule || result.cookSchedule.length === 0) return [];
+  const lines = ["\n## Madlavningsplan (batch-dage)"];
+  const byDay = new Map<number, typeof result.cookSchedule>();
+  for (const block of result.cookSchedule) {
+    const list = byDay.get(block.day) ?? [];
+    list.push(block);
+    byDay.set(block.day, list);
+  }
+  for (const [day, blocks] of [...byDay.entries()].sort((a, b) => a[0] - b[0])) {
+    for (const b of blocks) {
+      const coverText =
+        b.covers.length > 1
+          ? `${b.mealType} dag ${b.covers.join("/")}`
+          : `${b.mealType} dag ${b.covers[0]}`;
+      lines.push(`Dag ${day}: lav ${b.portions} portioner ${b.recipeName} — ${coverText}`);
+    }
   }
   return lines;
 }
@@ -116,6 +138,7 @@ export function formatPlanResult(result: PlanResult, currency: string): string {
     result.notes.length > 0 ? ["\n## Bemærk", ...result.notes.map((n) => `- ${n}`)] : [];
   return [
     ...formatDays(result, currency),
+    ...formatCookSchedule(result),
     ...noteLines,
     ...formatKcal(result),
     ...formatShoppingByStore(result, currency),
@@ -170,6 +193,17 @@ export function registerPlannerTools(server: McpServer): void {
         .positive()
         .optional()
         .describe("Skip slow recipes when under ~45 min; skip medium too when under ~25 min"),
+      meal_prep: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe(
+          "Batch-cook mode: consolidate cooking onto 1-2 cook days (default day 1 + 4), prefer batchable recipes, scale portions so leftovers cover following days, and schedule every leftover portion as a real meal.",
+        ),
+      cook_days: z
+        .array(z.number().int().min(1))
+        .optional()
+        .describe("1-indexed cook days for meal_prep (default [1, 4], e.g. Sunday + Wednesday)"),
       maxPerProtein: z.number().int().positive().optional().default(2),
       maxPerCuisine: z.number().int().positive().optional().default(2),
       maxSlowDays: z.number().int().min(0).optional().default(2),
@@ -182,6 +216,8 @@ export function registerPlannerTools(server: McpServer): void {
       kcal_per_person_per_day,
       excludeProteins,
       max_cook_minutes,
+      meal_prep,
+      cook_days,
       maxPerProtein,
       maxPerCuisine,
       maxSlowDays,
@@ -229,6 +265,8 @@ export function registerPlannerTools(server: McpServer): void {
           days,
           meals: mealTypes,
           kcalPerPersonPerDay: kcal_per_person_per_day,
+          mealPrep: meal_prep,
+          cookDays: cook_days,
           constraints: {
             maxPerProtein,
             maxPerCuisine,

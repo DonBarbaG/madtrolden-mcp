@@ -5,9 +5,10 @@
 // Nasi goreng and chow mein based on common versions.
 // Swedish family recipes from jarfors.com.
 
+import breakfastLunchData from "../data/breakfast-lunch.json";
 import type { Recipe } from "./store";
 
-export const defaultRecipes: Recipe[] = [
+const dinnerRecipes: Recipe[] = [
   {
     name: "Frikadeller",
     servings: 4,
@@ -2368,3 +2369,51 @@ export const defaultRecipes: Recipe[] = [
     ],
   },
 ];
+
+// --- Meal-prep annotations for the 32 dinners (batchable is opt-IN) ---
+// keepsDays = how long leftovers keep refrigerated; conservative values.
+
+const BATCH_INFO: Record<string, { batchable: boolean; keepsDays: number }> = {
+  Frikadeller: { batchable: true, keepsDays: 3 },
+  "Spaghetti Bolognese": { batchable: true, keepsDays: 3 },
+  "Chili con Carne": { batchable: true, keepsDays: 4 },
+  "Brændende Kærlighed": { batchable: false, keepsDays: 1 },
+  "Kylling i Karry": { batchable: true, keepsDays: 3 },
+  "Laks i fad": { batchable: false, keepsDays: 1 },
+  Flæskesteg: { batchable: true, keepsDays: 3 },
+  Tomatsuppe: { batchable: true, keepsDays: 3 },
+  "Hakkebøffer med bløde løg": { batchable: false, keepsDays: 2 },
+  Kartoffelsuppe: { batchable: true, keepsDays: 3 },
+  Lasagne: { batchable: true, keepsDays: 3 },
+  "Tacos med kylling": { batchable: false, keepsDays: 1 },
+  "Wok med kylling": { batchable: false, keepsDays: 1 },
+  "Spaghetti Carbonara": { batchable: false, keepsDays: 0 },
+  "Fiskefilet med remoulade": { batchable: false, keepsDays: 0 },
+  Biksemad: { batchable: true, keepsDays: 2 },
+  "Koteletter i fad": { batchable: true, keepsDays: 2 },
+  "Bagt kylling med ovnkartofler": { batchable: true, keepsDays: 2 },
+  Tomatrisotto: { batchable: false, keepsDays: 1 },
+  "Nudelsuppe med kylling": { batchable: true, keepsDays: 2 },
+  "Marry Me Chicken": { batchable: true, keepsDays: 2 },
+  Pølsegryde: { batchable: true, keepsDays: 3 },
+  "Salsiccia Pasta": { batchable: true, keepsDays: 2 },
+  "Uncle Roger's Egg Fried Rice": { batchable: false, keepsDays: 1 },
+  "Nasi Goreng": { batchable: false, keepsDays: 1 },
+  "Chow Mein": { batchable: false, keepsDays: 1 },
+  "Uncle Roger's Adobo": { batchable: true, keepsDays: 4 },
+  "Maangchi's Bulgogi": { batchable: true, keepsDays: 2 },
+  "Kajsas Kycklingfilé med senap og rosépeber": { batchable: false, keepsDays: 1 },
+  "Grillet laks med tomatsmør": { batchable: false, keepsDays: 0 },
+  "Sagas Krydderisauce": { batchable: true, keepsDays: 3 },
+  "Fransk grillet kylling med dragonsauce": { batchable: false, keepsDays: 2 },
+};
+
+const annotatedDinners: Recipe[] = dinnerRecipes.map((r) => ({
+  ...r,
+  mealType: "dinner" as const,
+  ...(BATCH_INFO[r.name] ?? {}),
+}));
+
+const breakfastLunchRecipes = breakfastLunchData.recipes as Recipe[];
+
+export const defaultRecipes: Recipe[] = [...annotatedDinners, ...breakfastLunchRecipes];
