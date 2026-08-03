@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 29 / 34 done — ~85%** (task-count, each item = 1; last updated 2026-08-03)
+**Progress: 33 / 34 done — ~97%** (task-count, each item = 1; last updated 2026-08-03)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -16,7 +16,7 @@ Spec: `../claude-code-prompt-madtrolden.md` · Phase-0 findings: `docs/api-notes
 
 ## ESTIMATE (law-adjusted, measured — refreshed every session)
 
-First session, no own velocity history yet. Phase 0 took ~0.5h wall. Remaining 29 items ≈ heavily ⏾ (all [me] except 27, 31): ratio vs Phase-0 pace suggests ~10–14 focused Claude-hours raw → **×1.7 Hofstadter ≈ 17–24 h Claude-work, of which ~95% is ⏾ night-able. Ludwig-hours: ~0.5–1 h** (Vercel login/env approval if CLI unauthed, trying the connector from his Claude, key handout to family). Refresh after Phase 1 ships.
+Session 1 (2026-08-03) shipped items 1–33 in ~1.5 h wall — far under the 17–24 h estimate (multiplier learned: this codebase + spec quality collapse Claude-hours hard). Remaining: item 34 only, all [you]-hours: try the connector from your own Claude (~10 min), genkey for family + hand out (~20 min), then tag v1.0.0. **Estimate to done: ~0.5 Ludwig-hours, 0 Claude-hours blocked.**
 
 ## PHASE 1 — Remote + auth + cache
 
@@ -59,10 +59,10 @@ First session, no own velocity history yet. Phase 0 took ~0.5h wall. Remaining 2
 
 ## PHASE 6 — Polish + ship
 
-- [ ] 30. ONBOARDING.md [me] ⏾ — for non-technical family: claude.ai connector, Desktop, Claude Code one-liner, first prompts, profile-saving habit.
-- [ ] 31. README rewrite [me] ⏾ — architecture, env vars, deploy, credits (tilbudstrolden MIT, Tjek, Frida/DTU CC BY, DAWA, OSM).
-- [ ] 32. CI [me] ⏾ — GitHub Actions: lint, typecheck, tests.
-- [ ] 33. Security pass §9 [me] ⏾ — full checklist incl. git-history secret scan, npm audit, 429 test, outbound-host audit.
+- [x] 30. ONBOARDING.md [me] ⏾ — for non-technical family: claude.ai connector, Desktop, Claude Code one-liner, first prompts, profile-saving habit.
+- [x] 31. README rewrite [me] ⏾ — architecture, env vars, deploy, credits (tilbudstrolden MIT, Tjek, Frida/DTU CC BY, DAWA, OSM).
+- [x] 32. CI [me] ⏾ — GitHub Actions: lint, typecheck, tests.
+- [x] 33. Security pass §9 [me] ⏾ — full checklist incl. git-history secret scan, npm audit, 429 test, outbound-host audit.
 - [ ] 34. Keys + family rollout [you] — generate per-person keys into Vercel env, hand out, tag v1.0.0 after Ludwig's own end-to-end run.
 
 ## INBOX — unsorted brain-dumps
