@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 23 / 34 done — ~68%** (task-count, each item = 1; last updated 2026-08-03)
+**Progress: 26 / 34 done — ~76%** (task-count, each item = 1; last updated 2026-08-03)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -47,9 +47,9 @@ First session, no own velocity history yet. Phase 0 took ~0.5h wall. Remaining 2
 
 ## PHASE 4 — Meals + meal prep
 
-- [ ] 24. `data/breakfast-lunch.json` [me] ⏾ — ~10 + ~10 danske billige templates; `mealType`/`batchable`/`keepsDays` fields, annotate the 32 dinners.
-- [ ] 25. Meal-prep mode [me] ⏾ — ≤2 cook days, portions scale, leftovers scheduled onto the calendar (never vanish).
-- [ ] 26. Phase-4 acceptance [me] ⏾ — `meal_prep=true, meals=[lunch,dinner]` → every cooked portion appears on some day.
+- [x] 24. `data/breakfast-lunch.json` [me] ⏾ — ~10 + ~10 danske billige templates; `mealType`/`batchable`/`keepsDays` fields, annotate the 32 dinners.
+- [x] 25. Meal-prep mode [me] ⏾ — ≤2 cook days, portions scale, leftovers scheduled onto the calendar (never vanish).
+- [x] 26. Phase-4 acceptance [me] ⏾ — `meal_prep=true, meals=[lunch,dinner]` → every cooked portion appears on some day.
 
 ## PHASE 5 — Location
 
