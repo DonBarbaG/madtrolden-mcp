@@ -6,6 +6,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerPrompts } from "./prompts";
 import { registerDealTools } from "./tools/deals";
 import { registerHouseholdTools } from "./tools/household";
+import { registerPlannerTools } from "./tools/planner";
 import { registerProfileTools } from "./tools/profile";
 import { registerRecipeTools } from "./tools/recipes";
 import { registerScoringTools } from "./tools/scoring";
@@ -48,9 +49,10 @@ Set country via update_household. Search terms must be in the local language (Da
 - get_recipes / add_recipe / remove_recipe: recipe library
 
 ### Planning and shopping
+- plan_week: budget-capped week planning (hard DKK cap, optional kcal target) — use for "feed us for X kr"
 - score_recipes: score recipes against current deals; optionally generate an optimized weekly plan
 - generate_shopping_list: deal-grouped shopping list for chosen recipes
-- plan_and_shop: one-shot weekly plan plus shopping list (the main entry point)
+- plan_and_shop: one-shot weekly plan plus shopping list (no budget cap)
 
 ### History
 - log_meal / get_meal_history: track cooked meals to avoid repetition
@@ -95,6 +97,7 @@ export function registerAll(server: McpServer): void {
   registerScoringTools(server);
   registerTrackingTools(server);
   registerShoppingTools(server);
+  registerPlannerTools(server);
   registerProfileTools(server);
   registerWhoamiTool(server);
 }
