@@ -541,10 +541,14 @@ function planPrep(
     }
     const used = new Set<string>();
     const nextRecipe = (remainingDays: number): EnrichedRecipe => {
-      // Prefer (cheapest) unused recipe whose leftovers span the remaining
-      // segment; otherwise the unused recipe that keeps longest; otherwise cycle.
+      // Best-fit: among unused recipes whose leftovers span the remaining
+      // segment, take the one that keeps JUST long enough (cheapest tiebreak)
+      // so long keepers stay available for longer segments. Otherwise the
+      // longest keeper; otherwise cycle.
       const unused = prepPool.filter((e) => !used.has(e.scored.name));
-      const spanning = unused.filter((e) => keepsDaysOf(e) + 1 >= remainingDays);
+      const spanning = unused
+        .filter((e) => keepsDaysOf(e) + 1 >= remainingDays)
+        .sort((a, b) => keepsDaysOf(a) - keepsDaysOf(b) || a.fullCost - b.fullCost);
       const longestKeeper = [...unused].sort(
         (a, b) => keepsDaysOf(b) - keepsDaysOf(a) || a.fullCost - b.fullCost,
       )[0];
