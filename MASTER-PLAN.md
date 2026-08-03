@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 26 / 34 done — ~76%** (task-count, each item = 1; last updated 2026-08-03)
+**Progress: 29 / 34 done — ~85%** (task-count, each item = 1; last updated 2026-08-03)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -53,9 +53,9 @@ First session, no own velocity history yet. Phase 0 took ~0.5h wall. Remaining 2
 
 ## PHASE 5 — Location
 
-- [ ] 27. DAWA geocoding + `find_stores_near` [me] ⏾ — address/latlng → branches within radius, haversine distances.
-- [ ] 28. Distance-aware planning [me] ⏾ — chains with a branch in radius rank higher; shopping list shows nearest branch + km; regional-flyer caveat flagged.
-- [ ] 29. Phase-5 acceptance [me] ⏾ — København address → sane branches/distances end-to-end on deployed URL.
+- [x] 27. DAWA geocoding + `find_stores_near` [me] ⏾ — address/latlng → branches within radius, haversine distances.
+- [x] 28. Distance-aware planning [me] ⏾ — chains with a branch in radius rank higher; shopping list shows nearest branch + km; regional-flyer caveat flagged.
+- [x] 29. Phase-5 acceptance [me] ⏾ — København address → sane branches/distances end-to-end on deployed URL.
 
 ## PHASE 6 — Polish + ship
 
