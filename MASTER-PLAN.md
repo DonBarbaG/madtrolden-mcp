@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 19 / 34 done — ~56%** (task-count, each item = 1; last updated 2026-08-03)
+**Progress: 23 / 34 done — ~68%** (task-count, each item = 1; last updated 2026-08-03)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -40,10 +40,10 @@ First session, no own velocity history yet. Phase 0 took ~0.5h wall. Remaining 2
 
 ## PHASE 3 — Budget + nutrition
 
-- [ ] 20. `data/baseline-prices.json` [me] ⏾ — ~150 danske stapler, conservative 2026 discount estimates, `"source": "estimates, user-editable"`.
-- [ ] 21. `npm run build:nutrition` + `data/nutrition.json` [me] ⏾ — Frida xlsx → ~200–300 ingredients, kcal/protein/fat/carbs per 100g, CC BY 4.0 attribution, JSON committed.
-- [ ] 22. `plan_week` solver [me] ⏾ — hard budget cap, kcal ±10%, greedy seed → local search, deterministic; infeasible → cheapest plan + gap + relax suggestions.
-- [ ] 23. Phase-3 acceptance [me] ⏾ — unit tests: cap-binding, infeasible, no-kcal-target; "2 pers, 500 kr, 2000 kcal, veg, dinners" scenario.
+- [x] 20. `data/baseline-prices.json` [me] ⏾ — ~150 danske stapler, conservative 2026 discount estimates, `"source": "estimates, user-editable"`.
+- [x] 21. `npm run build:nutrition` + `data/nutrition.json` [me] ⏾ — Frida xlsx → ~200–300 ingredients, kcal/protein/fat/carbs per 100g, CC BY 4.0 attribution, JSON committed.
+- [x] 22. `plan_week` solver [me] ⏾ — hard budget cap, kcal ±10%, greedy seed → local search, deterministic; infeasible → cheapest plan + gap + relax suggestions.
+- [x] 23. Phase-3 acceptance [me] ⏾ — unit tests: cap-binding, infeasible, no-kcal-target; "2 pers, 500 kr, 2000 kcal, veg, dinners" scenario.
 
 ## PHASE 4 — Meals + meal prep
 
