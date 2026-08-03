@@ -1,15 +1,18 @@
 {
-  "name": "tilbudstrolden-mcp",
-  "version": "0.5.1",
+  "name": "madtrolden-mcp",
+  "version": "0.6.0",
   "type": "module",
-  "description": "MCP server for Nordic grocery deal hunting (Denmark, Norway, Sweden, Finland). Search offers, score recipes against current deals, and generate optimized shopping lists.",
-  "author": "Olga Safonova",
+  "private": true,
+  "description": "Remote MCP server for Danish grocery-deal meal planning on Vercel. Fork of tilbudstrolden-mcp by Olga Safonova (MIT). Search offers, plan budget-capped weeks, and generate deal-optimized shopping lists.",
+  "author": "Ludwig Madsen Barbagallo",
+  "contributors": [
+    "Olga Safonova (original tilbudstrolden-mcp, https://github.com/olgasafonova/tilbudstrolden-mcp)"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/olgasafonova/tilbudstrolden-mcp.git"
+    "url": "https://github.com/DonBarbaG/madtrolden-mcp.git"
   },
-  "homepage": "https://github.com/olgasafonova/tilbudstrolden-mcp",
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -24,29 +27,29 @@
     "ai-tools"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
-  "main": "dist/server.js",
-  "files": [
-    "dist/",
-    "LICENSE",
-    "README.md"
-  ],
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "tsx watch src/server.ts",
-    "lint": "biome check src/",
-    "lint:fix": "biome check --write src/",
-    "format": "biome format --write src/",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "dev:stdio": "tsx watch lib/server-stdio.ts",
+    "start:stdio": "tsx lib/server-stdio.ts",
+    "genkey": "tsx scripts/genkey.ts",
+    "lint": "biome check lib/ app/ scripts/",
+    "lint:fix": "biome check --write lib/ app/ scripts/",
+    "format": "biome format --write lib/ app/ scripts/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest",
-    "prepublishOnly": "npm run build"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
+    "mcp-handler": "1.0.6",
+    "next": "^16.2.12",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "zod": "^4.3.6"
   },
   "overrides": {
@@ -55,6 +58,8 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.9",
     "@types/node": "^25.5.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
     "@vitest/coverage-v8": "^4.1.10",
     "tsx": "^4.0.0",
     "typescript": "^5.3.0",

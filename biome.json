@@ -14,7 +14,9 @@
       "complexity": {
         "noExcessiveCognitiveComplexity": {
           "level": "warn",
-          "options": { "maxAllowedComplexity": 25 }
+          "options": {
+            "maxAllowedComplexity": 25
+          }
         }
       },
       "suspicious": {
@@ -32,6 +34,10 @@
     "lineWidth": 100
   },
   "files": {
-    "includes": ["src/**"]
+    "includes": [
+      "lib/**",
+      "app/**",
+      "scripts/**"
+    ]
   }
 }

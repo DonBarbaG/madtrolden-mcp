@@ -1,0 +1,1088 @@
+// Deal scoring and weekly meal plan optimization
+// Extracted for testability; used by server.ts tool handlers.
+
+import type { Offer } from "./api";
+import type { Locale } from "./locales";
+import type { Ingredient } from "./store";
+
+// --- Quantity parsing ---
+
+export interface ParsedQuantity {
+  amount: number;
+  unit: string; // normalized: "g", "ml", "stk", or original if unknown
+}
+
+/** Multipliers to convert common SI/retail units to base units (g or ml). */
+const UNIT_CONVERSIONS: Record<string, { base: string; factor: number }> = {
+  g: { base: "g", factor: 1 },
+  kg: { base: "g", factor: 1000 },
+  ml: { base: "ml", factor: 1 },
+  cl: { base: "ml", factor: 10 },
+  dl: { base: "ml", factor: 100 },
+  l: { base: "ml", factor: 1000 },
+  stk: { base: "stk", factor: 1 },
+};
+
+/**
+ * Parse a recipe quantity string into amount + normalized unit.
+ * Returns null for unparseable quantities ("efter smag", "3 fed", etc.)
+ */
+export function parseQuantity(qty: string): ParsedQuantity | null {
+  const trimmed = qty.trim().toLowerCase();
+
+  // Match patterns: "500g", "500 g", "1.5 kg", "0,5 L"
+  const match = trimmed.match(/^(\d+(?:[.,]\d+)?)\s*([a-zæøå]+)$/);
+  if (!match) return null;
+
+  const amount = Number.parseFloat(match[1].replace(",", "."));
+  if (Number.isNaN(amount) || amount <= 0) return null;
+
+  const rawUnit = match[2];
+  const conversion = UNIT_CONVERSIONS[rawUnit];
+  if (!conversion) return null;
+
+  return { amount: amount * conversion.factor, unit: conversion.base };
+}
+
+// --- Shopping cost (whole packs) ---
+
+export interface ShoppingCost {
+  /** Quantity needed scaled for household */
+  quantityNeeded: number;
+  /** Normalized unit ("g", "ml", "stk") */
+  unitNeeded: string;
+  /** How much one pack contains (in base units) */
+  packSize: number;
+  /** Whole packs you must buy */
+  packsNeeded: number;
+  /** Sticker price per pack */
+  pricePerPack: number;
+  /** Total at the register: packsNeeded × pricePerPack */
+  totalCost: number;
+  /** Leftover quantity after cooking */
+  leftover: number;
+  /** Formatted unit price string from offer */
+  unitPrice: string | null;
+}
+
+interface OfferPackInfo {
+  packSize: number;
+  baseUnit: string;
+  price: number;
+}
+
+/** Pack size in base units + price, or null when offer can't be normalized to a pack. */
+function getOfferPackInfo(offer: Offer): OfferPackInfo | null {
+  const price = offer.price;
+  if (price === null || price <= 0) return null;
+
+  const offerQty = offer.quantity;
+  if (!offerQty || offerQty <= 0) return null;
+
+  const offerUnit = offer.unit?.toLowerCase();
+  if (!offerUnit) return null;
+
+  const conversion = UNIT_CONVERSIONS[offerUnit];
+  if (!conversion) return null;
+
+  return {
+    packSize: offerQty * conversion.factor,
+    baseUnit: conversion.base,
+    price,
+  };
+}
+
+function buildShoppingCost(
+  offer: Offer,
+  pack: OfferPackInfo,
+  totalAmount: number,
+  unit: string,
+): ShoppingCost {
+  const packsNeeded = Math.ceil(totalAmount / pack.packSize);
+  return {
+    quantityNeeded: Math.round(totalAmount),
+    unitNeeded: unit,
+    packSize: Math.round(pack.packSize),
+    packsNeeded,
+    pricePerPack: pack.price,
+    totalCost: packsNeeded * pack.price,
+    leftover: Math.round(packsNeeded * pack.packSize - totalAmount),
+    unitPrice: offer.pricePerUnit,
+  };
+}
+
+/**
+ * Compute actual ingredient cost based on unit pricing, quantity needed,
+ * and household serving scale. Falls back to sticker price when unit
+ * comparison isn't possible.
+ */
+export function computeIngredientCost(
+  offer: Offer,
+  recipeQty: string,
+  recipeServings: number,
+  householdSize: number,
+): number {
+  const price = offer.price;
+  if (price === null || price <= 0) return 0;
+
+  const servingScale = recipeServings > 0 ? householdSize / recipeServings : 1;
+
+  const parsed = parseQuantity(recipeQty);
+  if (!parsed) return price * servingScale;
+
+  const pack = getOfferPackInfo(offer);
+  if (!pack || pack.baseUnit !== parsed.unit) return price * servingScale;
+
+  const unitPrice = pack.price / pack.packSize;
+  const scaledAmount = parsed.amount * servingScale;
+  return Math.round(unitPrice * scaledAmount * 100) / 100;
+}
+
+/**
+ * Compute how many whole packs to buy and the real register cost.
+ * Returns null when units can't be compared (fall back to sticker price).
+ */
+export function computeShoppingCost(
+  offer: Offer,
+  recipeQty: string,
+  recipeServings: number,
+  householdSize: number,
+): ShoppingCost | null {
+  const parsed = parseQuantity(recipeQty);
+  if (!parsed) return null;
+
+  const pack = getOfferPackInfo(offer);
+  if (!pack || pack.baseUnit !== parsed.unit) return null;
+
+  const servingScale = recipeServings > 0 ? householdSize / recipeServings : 1;
+  return buildShoppingCost(offer, pack, parsed.amount * servingScale, parsed.unit);
+}
+
+/**
+ * Compute shopping cost from a pre-computed total quantity in base units.
+ * Used when quantities are aggregated across multiple recipes.
+ */
+export function computeShoppingCostFromTotal(
+  offer: Offer,
+  totalAmount: number,
+  unit: string,
+): ShoppingCost | null {
+  if (totalAmount <= 0) return null;
+
+  const pack = getOfferPackInfo(offer);
+  if (!pack || pack.baseUnit !== unit) return null;
+
+  return buildShoppingCost(offer, pack, totalAmount, unit);
+}
+
+/**
+ * Sum multiple recipe quantities (each scaled for household) into a total.
+ * Returns null if any quantity is unparseable or units are incompatible.
+ */
+export function aggregateQuantities(
+  contributions: Array<{
+    quantity: string;
+    recipeServings: number;
+  }>,
+  householdSize: number,
+): { totalAmount: number; unit: string } | null {
+  let totalAmount = 0;
+  let baseUnit: string | null = null;
+
+  for (const c of contributions) {
+    const parsed = parseQuantity(c.quantity);
+    if (!parsed) return null;
+
+    if (baseUnit === null) {
+      baseUnit = parsed.unit;
+    } else if (baseUnit !== parsed.unit) {
+      return null; // incompatible units
+    }
+
+    const scale = c.recipeServings > 0 ? householdSize / c.recipeServings : 1;
+    totalAmount += parsed.amount * scale;
+  }
+
+  if (baseUnit === null || totalAmount <= 0) return null;
+  return { totalAmount: Math.round(totalAmount), unit: baseUnit };
+}
+
+/**
+ * Format a base-unit quantity for human display.
+ * Converts 1500g -> "1.5 kg", 250ml -> "2.5 dl", etc.
+ */
+export function formatQuantity(amount: number, unit: string): string {
+  if (unit === "g" && amount >= 1000) {
+    return `${(amount / 1000).toFixed(1).replace(/\.0$/, "")} kg`;
+  }
+  if (unit === "ml" && amount >= 1000) {
+    return `${(amount / 1000).toFixed(1).replace(/\.0$/, "")} L`;
+  }
+  if (unit === "ml" && amount >= 100) {
+    return `${(amount / 100).toFixed(1).replace(/\.0$/, "")} dl`;
+  }
+  return `${amount} ${unit}`;
+}
+
+// --- Types ---
+
+export interface DealCandidate {
+  heading: string;
+  price: number;
+  store: string;
+  score: number;
+}
+
+export interface ScoredIngredient {
+  name: string;
+  quantity: string;
+  category: string;
+  bestDeal: { heading: string; price: number; store: string } | null;
+  estimatedCost: number;
+  confidence: "high" | "low" | "none";
+  candidates?: DealCandidate[];
+}
+
+export interface ScoredRecipe {
+  name: string;
+  servings: number;
+  complexity: string;
+  proteinType: string;
+  cuisineType: string;
+  estimatedCost: number;
+  dealCoverage: number;
+  ingredients: ScoredIngredient[];
+}
+
+// --- Product form indicators ---
+
+export const PROCESSED_INDICATORS = [
+  "røget",
+  "varmrøget",
+  "koldrøget",
+  "kold-",
+  "marineret",
+  "marinerede",
+  "pålæg",
+  "pålægssalat",
+  "stegt",
+  "paneret",
+  "panerede",
+  "gravad",
+  "tørret",
+  "dåse",
+  "konserves",
+  "salat",
+  "postej",
+  "leverpostej",
+  "rullepølse",
+  "spegepølse",
+];
+
+export const RAW_INDICATORS = [
+  "hakket",
+  "filet",
+  "hel ",
+  "hele ",
+  "fersk",
+  "frossen",
+  "frosne",
+  "rå",
+  "udskæring",
+  "strimler",
+  "terninger",
+  "skiver",
+  "udbenede",
+  "bryst",
+  "overlår",
+  "underlår",
+  "lår",
+  "mørbrad",
+  "nakke",
+  "bov",
+];
+
+/**
+ * Headings containing these terms are not raw grocery ingredients.
+ * Matched against lowercased heading; returns 0 immediately.
+ */
+export const NON_INGREDIENT_INDICATORS = [
+  // Garden / DIY products
+  "frø,",
+  "frø ",
+  "såfrø",
+  "blomsterløg",
+  // Ready meals and prepared dishes
+  "tærte",
+  "omelet",
+  "gratin",
+  "gryderet",
+  "færdigret",
+  "risretter",
+  "risret",
+  "snack pot",
+  "kopnudler",
+  "instant ",
+  "flødekartofler",
+  // Non-food products
+  "vaseline",
+  "shampoo",
+  "sæbe",
+  "opvask",
+  // Beverages when searching for food items
+  "sodavand",
+  "energidrik",
+  "skummetmælk", // flavored milk drink, not cooking milk
+  // Pizza / ready food
+  "pizza",
+];
+
+// --- Scoring weights ---
+
+export const SCORE = {
+  BASE: 50,
+  PREFERRED_STORE_BONUS: 10,
+  NON_PREFERRED_PENALTY: -20,
+  PROCESSED_PENALTY: -60,
+  RAW_BONUS: 15,
+  BUNDLE_UNCERTAINTY_PENALTY: -30,
+  EXACT_MATCH_BONUS: 20,
+  PARTIAL_MATCH_BONUS: 5,
+  /** Search term appears after a preposition (i, med, og) = probably not the product */
+  MODIFIER_PENALTY: -40,
+  /** Search term not found in heading at all */
+  NO_MATCH_PENALTY: -50,
+  VIABILITY_THRESHOLD: 30,
+  /** Above this = auto-accept; below = show candidates for Claude to validate */
+  CONFIDENT_THRESHOLD: 55,
+} as const;
+
+// --- Search term synonyms ---
+
+/**
+ * Maps Danish ingredient terms to synonyms used in store flyers.
+ * Expands search coverage for deal matching.
+ */
+export const SYNONYM_MAP: Record<string, string[]> = {
+  svinekød: ["grisekød", "grise-"],
+  "hakket svinekød": ["hakket grisekød", "grise- og kalvekød"],
+  svinefars: ["grisefars"],
+  oksekød: ["okse-"],
+  oksefars: ["hakket oksekød"],
+  kyllingebryst: ["kylling"],
+  kyllingefilet: ["kylling"],
+  kyllingelår: ["kylling", "kyllingeunderlår"],
+  kyllingestykker: ["kylling", "hel kylling"],
+  rejer: ["skalrejer"],
+};
+
+/**
+ * Expand search terms with synonyms for better flyer matching.
+ * Uses locale-specific synonym map, falling back to DK defaults.
+ */
+export function expandSearchTerms(
+  terms: string[],
+  synonymMap: Record<string, string[]> = SYNONYM_MAP,
+): string[] {
+  const expanded = new Set(terms);
+  for (const term of terms) {
+    const synonyms = synonymMap[term.toLowerCase()];
+    if (synonyms) {
+      for (const syn of synonyms) expanded.add(syn);
+    }
+  }
+  return [...expanded];
+}
+
+/**
+ * Danish prepositions that indicate the search term after them
+ * is a modifier/addition, not the primary product.
+ * "Tunfilet i olivenolie" → olivenolie is a modifier.
+ */
+const MODIFIER_PREPOSITIONS = [" i ", " med ", " og ", " på ", " til ", " fra "];
+
+/**
+ * Check if the search term appears only in a modifier position
+ * (after a preposition), not as the primary product.
+ */
+export function isModifierPosition(
+  heading: string,
+  term: string,
+  prepositions: string[] = MODIFIER_PREPOSITIONS,
+): boolean {
+  const idx = heading.indexOf(term);
+  if (idx < 0) return false;
+  // If term starts the heading, it's primary
+  if (idx === 0) return false;
+
+  const before = heading.slice(0, idx);
+  return prepositions.some((prep) => before.includes(prep));
+}
+
+interface MatchIndicators {
+  nonIngredient: string[];
+  processed: string[];
+  raw: string[];
+  bundlePatterns: string[];
+  modifierPrepositions: string[];
+}
+
+/** Everything needed to score a deal that stays constant across one ingredient search. */
+export interface MatchContext {
+  preferredStores: Set<string>;
+  indicators: MatchIndicators;
+}
+
+function resolveIndicators(locale?: Locale): MatchIndicators {
+  return {
+    nonIngredient: locale?.nonIngredientIndicators ?? NON_INGREDIENT_INDICATORS,
+    processed: locale?.processedIndicators ?? PROCESSED_INDICATORS,
+    raw: locale?.rawIndicators ?? RAW_INDICATORS,
+    bundlePatterns: locale?.bundlePatterns ?? [" eller ", " el. "],
+    modifierPrepositions: locale?.modifierPrepositions ?? MODIFIER_PREPOSITIONS,
+  };
+}
+
+/** Build the per-search scoring context from preferred stores and an optional locale. */
+export function buildMatchContext(preferredStores: Set<string>, locale?: Locale): MatchContext {
+  return { preferredStores, indicators: resolveIndicators(locale) };
+}
+
+// Case-insensitive: API returns "føtex" but users type "Føtex" or "Foetex".
+// Returns the matched-store bonus, or null if the offer should be rejected.
+function preferredStoreScore(offer: Offer, preferredStores: Set<string>): number | null {
+  if (preferredStores.size === 0) return 0;
+  const offerStoreLower = offer.store.toLowerCase();
+  for (const ps of preferredStores) {
+    if (ps.toLowerCase() === offerStoreLower) {
+      return SCORE.PREFERRED_STORE_BONUS;
+    }
+  }
+  return null;
+}
+
+function scoreMeatOrFrozen(
+  heading: string,
+  isBundleHeading: boolean,
+  ind: MatchIndicators,
+): number {
+  const isProcessed = ind.processed.some((p) => heading.includes(p));
+  const isRaw = ind.raw.some((r) => heading.includes(r));
+
+  let delta = 0;
+  if (isProcessed && !isRaw) delta += SCORE.PROCESSED_PENALTY;
+  else if (isRaw) delta += SCORE.RAW_BONUS;
+
+  if (isBundleHeading && isProcessed) delta += SCORE.BUNDLE_UNCERTAINTY_PENALTY;
+
+  return delta;
+}
+
+function scoreTextMatch(heading: string, term: string, modifierPrepositions: string[]): number {
+  if (heading.startsWith(term) || heading === term) return SCORE.EXACT_MATCH_BONUS;
+  if (!heading.includes(term)) return SCORE.NO_MATCH_PENALTY;
+  return isModifierPosition(heading, term, modifierPrepositions)
+    ? SCORE.MODIFIER_PENALTY
+    : SCORE.PARTIAL_MATCH_BONUS;
+}
+
+/**
+ * Score a deal against an ingredient using a pre-built MatchContext.
+ * Internal hot-path entry used when many offers share one context.
+ * Returns 0 (no match) to ~100 (perfect match).
+ */
+export function scoreDealMatchCtx(
+  offer: Offer,
+  ingredient: Ingredient,
+  searchTerm: string,
+  ctx: MatchContext,
+): number {
+  if (offer.price === null || offer.price <= 0) return 0;
+
+  const heading = offer.heading.toLowerCase();
+  const ind = ctx.indicators;
+
+  if (ind.nonIngredient.some((s) => heading.includes(s))) return 0;
+
+  const storeBonus = preferredStoreScore(offer, ctx.preferredStores);
+  if (storeBonus === null) return 0;
+
+  const isBundleHeading = ind.bundlePatterns.some((p) => heading.includes(p));
+  let score = SCORE.BASE + storeBonus;
+
+  if (ingredient.category === "meat" || ingredient.category === "frozen") {
+    score += scoreMeatOrFrozen(heading, isBundleHeading, ind);
+  }
+
+  // Penalize ambiguous "X eller Y" / "X el. Y" bundles for all categories
+  if (isBundleHeading) {
+    score += SCORE.PARTIAL_MATCH_BONUS - SCORE.EXACT_MATCH_BONUS;
+  }
+
+  score += scoreTextMatch(heading, searchTerm.toLowerCase(), ind.modifierPrepositions);
+
+  return Math.max(0, score);
+}
+
+/**
+ * Score how well a deal matches an ingredient for cooking.
+ * Returns 0 (no match) to ~100 (perfect match).
+ * Accepts optional locale for country-specific term matching.
+ */
+export function scoreDealMatch(
+  offer: Offer,
+  ingredient: Ingredient,
+  searchTerm: string,
+  preferredStores: Set<string>,
+  locale?: Locale,
+): number {
+  return scoreDealMatchCtx(
+    offer,
+    ingredient,
+    searchTerm,
+    buildMatchContext(preferredStores, locale),
+  );
+}
+
+export interface DealSearchResult {
+  best: Offer | null;
+  bestScore: number;
+  confidence: "high" | "low" | "none";
+  candidates: { offer: Offer; score: number }[];
+}
+
+function scoreOffersAcrossTerms(
+  searchTerms: string[],
+  dealMap: Map<string, Offer[]>,
+  scoreFn: (offer: Offer, term: string) => number,
+): { offer: Offer; score: number }[] {
+  const scored: { offer: Offer; score: number }[] = [];
+  for (const term of searchTerms) {
+    for (const offer of dealMap.get(term) ?? []) {
+      const score = scoreFn(offer, term);
+      if (score < SCORE.VIABILITY_THRESHOLD) continue;
+      scored.push({ offer, score });
+    }
+  }
+  return scored;
+}
+
+function dedupOffersByBestScore(
+  scored: { offer: Offer; score: number }[],
+): { offer: Offer; score: number }[] {
+  const byId = new Map<string, { offer: Offer; score: number }>();
+  for (const s of scored) {
+    const existing = byId.get(s.offer.id);
+    if (!existing || s.score > existing.score) byId.set(s.offer.id, s);
+  }
+  return [...byId.values()].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return (a.offer.price ?? 999) - (b.offer.price ?? 999);
+  });
+}
+
+/**
+ * Find the best deal for an ingredient across all its search terms.
+ * Returns the best match plus up to 3 candidates for low-confidence matches.
+ */
+export function findBestDeal(
+  ing: { searchTerms: string[]; category: string; name: string },
+  dealMap: Map<string, Offer[]>,
+  preferredStores: Set<string>,
+  locale?: Locale,
+): DealSearchResult {
+  const searchTerms = expandSearchTerms(ing.searchTerms, locale?.synonymMap);
+  const ctx = buildMatchContext(preferredStores, locale);
+  const scored = scoreOffersAcrossTerms(searchTerms, dealMap, (offer, term) =>
+    scoreDealMatchCtx(offer, ing as Ingredient, term, ctx),
+  );
+  const sorted = dedupOffersByBestScore(scored);
+
+  if (sorted.length === 0) {
+    return { best: null, bestScore: 0, confidence: "none", candidates: [] };
+  }
+
+  const top = sorted[0];
+  const confidence = top.score >= SCORE.CONFIDENT_THRESHOLD ? "high" : "low";
+  return {
+    best: top.offer,
+    bestScore: top.score,
+    confidence,
+    candidates: sorted.slice(0, 3),
+  };
+}
+
+/**
+ * Calculate total basket cost for a set of recipes,
+ * accounting for shared ingredients (buy once, use in multiple).
+ */
+export function calculateBasketCost(recipes: ScoredRecipe[]): {
+  totalCost: number;
+  uniqueIngredients: number;
+  sharedSavings: number;
+} {
+  const seen = new Map<string, number>();
+  let totalCost = 0;
+  let sharedSavings = 0;
+  for (const recipe of recipes) {
+    for (const ing of recipe.ingredients) {
+      if (!ing.bestDeal) continue;
+      const key = ing.name.toLowerCase();
+      if (seen.has(key)) {
+        sharedSavings += ing.bestDeal.price;
+      } else {
+        seen.set(key, ing.bestDeal.price);
+        totalCost += ing.bestDeal.price;
+      }
+    }
+  }
+  return { totalCost, uniqueIngredients: seen.size, sharedSavings };
+}
+
+// --- Dietary ingredient tagging ---
+
+/**
+ * Maps dietary exclusion keywords to ingredient name patterns.
+ * Used to detect excluded ingredients beyond just proteinType.
+ * E.g. "pork" catches bacon in a "vegetarian" soup.
+ */
+export const INGREDIENT_TAGS: Record<string, string[]> = {
+  pork: [
+    "bacon",
+    "chorizo",
+    "salsiccia",
+    "pølse",
+    "wienerpølse",
+    "flæsk",
+    "flæskesteg",
+    "brystflæsk",
+    "svinekød",
+    "svinekam",
+    "svinekotelet",
+    "grisekød",
+    "grisefars",
+    "svinefars",
+    "mørbrad af gris",
+  ],
+  beef: ["oksekød", "oksemørbrad", "oksefars", "hakket okse"],
+  lamb: ["lam", "lammekølle", "lammeculotte"],
+  fish: ["laks", "fisk", "rødspætte", "torsk", "kuller", "tun", "sild"],
+  shellfish: ["rejer", "hummer", "muslinger", "skalrejer"],
+  dairy: [
+    "mælk",
+    "fløde",
+    "piskefløde",
+    "smør",
+    "ost",
+    "parmesan",
+    "mozzarella",
+    "creme fraiche",
+    "yoghurt",
+    "crème fraîche",
+  ],
+  gluten: [
+    "mel",
+    "hvedemel",
+    "pasta",
+    "spaghetti",
+    "nudler",
+    "ægnudler",
+    "brød",
+    "rugbrød",
+    "lasagneplader",
+    "tortilla",
+    "rasp",
+  ],
+  beans: ["bønner", "kidneybønner", "linser", "kikærter"],
+  nuts: ["cashewnødder", "mandler", "peanuts", "nødder", "hasselnødder"],
+  egg: ["æg"],
+};
+
+function anyIngredientMatchesPattern(ingredients: ScoredIngredient[], patterns: string[]): boolean {
+  return ingredients.some((ing) => {
+    const name = ing.name.toLowerCase();
+    return patterns.some((p) => name.includes(p));
+  });
+}
+
+/**
+ * Check if a recipe contains ingredients matching any of the excluded dietary tags.
+ * Returns the first matched tag, or null if no match.
+ */
+export function findExcludedTag(
+  ingredients: ScoredIngredient[],
+  exclusions: string[],
+  ingredientTags: Record<string, string[]> = INGREDIENT_TAGS,
+): string | null {
+  for (const tag of exclusions) {
+    const patterns = ingredientTags[tag];
+    if (!patterns) continue;
+    if (anyIngredientMatchesPattern(ingredients, patterns)) return tag;
+  }
+  return null;
+}
+
+// --- Variety constraints ---
+
+export interface VarietyConstraints {
+  maxPerProtein: number;
+  maxPerCuisine: number;
+  maxSlowDays: number;
+  /** Dietary exclusions: ["pork", "dairy", "nuts", ...]. Checks both proteinType and ingredient names. */
+  excludeProteins?: string[];
+  /** Per-tag day exceptions (1-indexed): {"pork": [2]} = allow pork on day 2 */
+  allowProteinOnDays?: Record<string, number[]>;
+  /** Restrict slow recipes to these days only (1-indexed), e.g. [6, 7] for weekends */
+  slowOnlyOnDays?: number[];
+  /** Soft cuisine preferences: {"asian": 3} = prefer at least 3 Asian dishes. Best-effort. */
+  preferCuisines?: Record<string, number>;
+  /** Locale-specific ingredient tag patterns for dietary exclusion matching */
+  ingredientTags?: Record<string, string[]>;
+}
+
+/** Compute a penalty for unmet cuisine preferences. Higher = further from target. */
+export function cuisinePreferencePenalty(
+  combo: ScoredRecipe[],
+  preferCuisines: Record<string, number>,
+): number {
+  const counts: Record<string, number> = {};
+  for (const r of combo) {
+    counts[r.cuisineType] = (counts[r.cuisineType] ?? 0) + 1;
+  }
+  let penalty = 0;
+  for (const [cuisine, target] of Object.entries(preferCuisines)) {
+    const actual = counts[cuisine] ?? 0;
+    if (actual < target) penalty += (target - actual) * 50;
+  }
+  return penalty;
+}
+
+/** True if this protein name is excluded and the current day isn't one of its allowed exceptions. */
+function isProteinBlockedOnDay(
+  proteinName: string,
+  day: number,
+  constraints: VarietyConstraints,
+): boolean {
+  if (!constraints.excludeProteins?.includes(proteinName)) return false;
+  const exceptions = constraints.allowProteinOnDays?.[proteinName];
+  return !exceptions?.includes(day);
+}
+
+function isProteinExcludedOnDay(
+  recipe: ScoredRecipe,
+  day: number,
+  constraints: VarietyConstraints,
+): boolean {
+  if (!constraints.excludeProteins?.length) return false;
+
+  if (isProteinBlockedOnDay(recipe.proteinType, day, constraints)) return true;
+
+  // Ingredient-level exclusion (catches bacon in "vegetarian" recipes, etc.)
+  const matchedTag = findExcludedTag(
+    recipe.ingredients,
+    constraints.excludeProteins,
+    constraints.ingredientTags,
+  );
+  if (matchedTag && matchedTag !== recipe.proteinType) {
+    return isProteinBlockedOnDay(matchedTag, day, constraints);
+  }
+  return false;
+}
+
+function isSlowOnAllowedDay(
+  recipe: ScoredRecipe,
+  day: number,
+  constraints: VarietyConstraints,
+): boolean {
+  if (recipe.complexity !== "slow") return true;
+  if (!constraints.slowOnlyOnDays) return true;
+  return constraints.slowOnlyOnDays.includes(day);
+}
+
+/** Check if a recipe is allowed on a specific day (1-indexed). */
+function isAllowedOnDay(
+  recipe: ScoredRecipe,
+  day: number,
+  constraints: VarietyConstraints,
+): boolean {
+  if (isProteinExcludedOnDay(recipe, day, constraints)) return false;
+  if (!isSlowOnAllowedDay(recipe, day, constraints)) return false;
+  return true;
+}
+
+function isValidCombo(combo: ScoredRecipe[], constraints: VarietyConstraints): boolean {
+  const proteinCount: Record<string, number> = {};
+  const cuisineCount: Record<string, number> = {};
+  let slowCount = 0;
+  for (let i = 0; i < combo.length; i++) {
+    const r = combo[i];
+    const day = i + 1;
+    if (!isAllowedOnDay(r, day, constraints)) return false;
+    proteinCount[r.proteinType] = (proteinCount[r.proteinType] ?? 0) + 1;
+    if (proteinCount[r.proteinType] > constraints.maxPerProtein) return false;
+    cuisineCount[r.cuisineType] = (cuisineCount[r.cuisineType] ?? 0) + 1;
+    if (cuisineCount[r.cuisineType] > constraints.maxPerCuisine) return false;
+    if (r.complexity === "slow") slowCount++;
+    if (slowCount > constraints.maxSlowDays) return false;
+  }
+  return true;
+}
+
+/**
+ * Find optimal weekly meal plan: cheapest basket cost while respecting variety.
+ * Uses positional assignment to support day-specific constraints
+ * (e.g. "no pork except Tuesday", "slow only on weekends").
+ * Brute-force permutations for small sets (<=12), greedy for larger.
+ */
+export function findOptimalWeek(
+  scored: ScoredRecipe[],
+  days: number,
+  constraints: VarietyConstraints,
+): { recipes: ScoredRecipe[]; basketCost: number } | null {
+  // Pre-filter: remove recipes that are globally excluded (unless they have day exceptions)
+  const hasExceptions = constraints.allowProteinOnDays ?? {};
+  const exclusions = constraints.excludeProteins ?? [];
+  const filtered = scored.filter((r) => {
+    // Check proteinType exclusion
+    if (exclusions.includes(r.proteinType)) {
+      return (hasExceptions[r.proteinType]?.length ?? 0) > 0;
+    }
+    // Check ingredient-level exclusion
+    const matchedTag = findExcludedTag(r.ingredients, exclusions, constraints.ingredientTags);
+    if (matchedTag) {
+      return (hasExceptions[matchedTag]?.length ?? 0) > 0;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0 || filtered.length < days) return null;
+
+  if (filtered.length <= 12) {
+    return findOptimalBrute(filtered, days, constraints);
+  }
+
+  return findOptimalGreedy(filtered, days, constraints);
+}
+
+/** Running variety tallies accumulated as the greedy selector picks recipes. */
+interface GreedyState {
+  used: Set<string>;
+  proteinCount: Record<string, number>;
+  cuisineCount: Record<string, number>;
+  slowCount: number;
+}
+
+function newGreedyState(): GreedyState {
+  return { used: new Set<string>(), proteinCount: {}, cuisineCount: {}, slowCount: 0 };
+}
+
+/** Record a picked recipe into the running tallies. */
+function recordGreedyPick(state: GreedyState, recipe: ScoredRecipe): void {
+  state.used.add(recipe.name);
+  state.proteinCount[recipe.proteinType] = (state.proteinCount[recipe.proteinType] ?? 0) + 1;
+  state.cuisineCount[recipe.cuisineType] = (state.cuisineCount[recipe.cuisineType] ?? 0) + 1;
+  if (recipe.complexity === "slow") state.slowCount++;
+}
+
+/** Check if a recipe fits the running variety tallies for greedy selection */
+function fitsGreedyConstraints(
+  recipe: ScoredRecipe,
+  day: number,
+  constraints: VarietyConstraints,
+  state: GreedyState,
+): boolean {
+  if (state.used.has(recipe.name)) return false;
+  if (!isAllowedOnDay(recipe, day, constraints)) return false;
+  if ((state.proteinCount[recipe.proteinType] ?? 0) >= constraints.maxPerProtein) return false;
+  if ((state.cuisineCount[recipe.cuisineType] ?? 0) >= constraints.maxPerCuisine) return false;
+  if (recipe.complexity === "slow" && state.slowCount >= constraints.maxSlowDays) return false;
+  return true;
+}
+
+function findOptimalGreedy(
+  scored: ScoredRecipe[],
+  days: number,
+  constraints: VarietyConstraints,
+): { recipes: ScoredRecipe[]; basketCost: number } | null {
+  const byBasketValue = [...scored].sort((a, b) => a.estimatedCost - b.estimatedCost);
+  const picked: (ScoredRecipe | null)[] = new Array(days).fill(null);
+  const state = newGreedyState();
+
+  for (let dayIdx = 0; dayIdx < days; dayIdx++) {
+    const day = dayIdx + 1;
+    for (const recipe of byBasketValue) {
+      if (!fitsGreedyConstraints(recipe, day, constraints, state)) continue;
+
+      picked[dayIdx] = recipe;
+      recordGreedyPick(state, recipe);
+      break;
+    }
+  }
+
+  const result = picked.filter((r): r is ScoredRecipe => r !== null);
+  if (result.length < days) return null;
+
+  // Post-fill: swap to improve cuisine preferences if configured
+  const improved = constraints.preferCuisines
+    ? applyPreferenceSwaps(result, scored, constraints)
+    : result;
+
+  const basket = calculateBasketCost(improved);
+  return { recipes: improved, basketCost: basket.totalCost };
+}
+
+interface SwappableSlot {
+  recipe: ScoredRecipe;
+  index: number;
+}
+
+interface SwapContext {
+  result: ScoredRecipe[];
+  allRecipes: ScoredRecipe[];
+  constraints: VarietyConstraints;
+  usedNames: Set<string>;
+}
+
+function findCuisineCandidates(ctx: SwapContext, cuisine: string): ScoredRecipe[] {
+  return ctx.allRecipes
+    .filter((r) => r.cuisineType === cuisine && !ctx.usedNames.has(r.name))
+    .sort((a, b) => a.estimatedCost - b.estimatedCost);
+}
+
+function findSwappableSlots(ctx: SwapContext, cuisine: string): SwappableSlot[] {
+  return ctx.result
+    .map((r, i) => ({ recipe: r, index: i }))
+    .filter((s) => s.recipe.cuisineType !== cuisine)
+    .sort((a, b) => b.recipe.estimatedCost - a.recipe.estimatedCost);
+}
+
+/** Try each slot until one swap keeps the plan valid. Mutates ctx.result and ctx.usedNames on success. */
+function trySwapCandidate(
+  ctx: SwapContext,
+  candidate: ScoredRecipe,
+  swappable: SwappableSlot[],
+  cuisine: string,
+): boolean {
+  for (const slot of swappable) {
+    if (ctx.result[slot.index].cuisineType === cuisine) continue; // already swapped
+    const backup = ctx.result[slot.index];
+    ctx.result[slot.index] = candidate;
+    if (isValidCombo(ctx.result, ctx.constraints)) {
+      ctx.usedNames.delete(backup.name);
+      ctx.usedNames.add(candidate.name);
+      return true;
+    }
+    ctx.result[slot.index] = backup; // revert
+  }
+  return false;
+}
+
+function fillCuisineQuota(ctx: SwapContext, cuisine: string, target: number): void {
+  let count = ctx.result.filter((r) => r.cuisineType === cuisine).length;
+  if (count >= target) return;
+
+  const candidates = findCuisineCandidates(ctx, cuisine);
+  const swappable = findSwappableSlots(ctx, cuisine);
+
+  for (const candidate of candidates) {
+    if (count >= target) break;
+    if (trySwapCandidate(ctx, candidate, swappable, cuisine)) {
+      count++;
+    }
+  }
+}
+
+/** Swap non-preferred recipes for preferred-cuisine ones, maintaining constraint validity */
+function applyPreferenceSwaps(
+  plan: ScoredRecipe[],
+  allRecipes: ScoredRecipe[],
+  constraints: VarietyConstraints,
+): ScoredRecipe[] {
+  const prefs = constraints.preferCuisines ?? {};
+  const ctx: SwapContext = {
+    result: [...plan],
+    allRecipes,
+    constraints,
+    usedNames: new Set(plan.map((r) => r.name)),
+  };
+
+  for (const [cuisine, target] of Object.entries(prefs)) {
+    fillCuisineQuota(ctx, cuisine, target);
+  }
+  return ctx.result;
+}
+
+/** Ordered permutations of size k (day assignment matters for per-day constraints). */
+function* permutations(
+  arr: ScoredRecipe[],
+  k: number,
+  chosen: ScoredRecipe[] = [],
+): Generator<ScoredRecipe[]> {
+  if (k === 0) {
+    yield chosen;
+    return;
+  }
+  for (let i = 0; i < arr.length; i++) {
+    const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+    yield* permutations(rest, k - 1, [...chosen, arr[i]]);
+  }
+}
+
+/** Unordered combinations of size k (used when no day-specific constraints apply). */
+function* combinations(arr: ScoredRecipe[], k: number, start = 0): Generator<ScoredRecipe[]> {
+  if (k === 0) {
+    yield [];
+    return;
+  }
+  for (let i = start; i <= arr.length - k; i++) {
+    for (const rest of combinations(arr, k - 1, i + 1)) {
+      yield [arr[i], ...rest];
+    }
+  }
+}
+
+function hasDayConstraints(constraints: VarietyConstraints): boolean {
+  return (
+    (constraints.excludeProteins?.length ?? 0) > 0 || (constraints.slowOnlyOnDays?.length ?? 0) > 0
+  );
+}
+
+interface BestCombo {
+  combo: ScoredRecipe[];
+  cost: number;
+}
+
+/** Pick the cheapest valid combo from a stream, scoring with a soft cuisine-preference penalty. */
+function cheapestValidCombo(
+  candidateCombos: Generator<ScoredRecipe[]>,
+  constraints: VarietyConstraints,
+): BestCombo | null {
+  const prefs = constraints.preferCuisines ?? {};
+  let best: BestCombo | null = null;
+  for (const combo of candidateCombos) {
+    if (!isValidCombo(combo, constraints)) continue;
+    const cost = calculateBasketCost(combo).totalCost + cuisinePreferencePenalty(combo, prefs);
+    if (!best || cost < best.cost) {
+      best = { combo: [...combo], cost };
+    }
+  }
+  return best;
+}
+
+function findOptimalBrute(
+  scored: ScoredRecipe[],
+  days: number,
+  constraints: VarietyConstraints,
+): { recipes: ScoredRecipe[]; basketCost: number } | null {
+  const candidateCombos = hasDayConstraints(constraints)
+    ? // Permutations needed: order matters for day-specific constraints.
+      permutations([...scored].sort((a, b) => a.estimatedCost - b.estimatedCost).slice(0, 10), days)
+    : // No day-specific constraints: combinations suffice (faster).
+      combinations(scored, days);
+
+  const best = cheapestValidCombo(candidateCombos, constraints);
+  if (!best) return null;
+
+  const realCost = calculateBasketCost(best.combo).totalCost;
+  return { recipes: best.combo, basketCost: realCost };
+}

@@ -8,8 +8,8 @@ export default defineConfig({
       // Without `all`, untested modules are absent from the report rather than
       // showing as 0%, which reads as better coverage than there is.
       all: true,
-      include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "test/**"],
+      include: ["lib/**/*.ts"],
+      exclude: ["lib/**/*.test.ts", "test/**"],
       reporter: ["text", "json-summary"],
     },
   },
