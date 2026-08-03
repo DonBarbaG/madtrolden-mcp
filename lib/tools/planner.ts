@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BASELINE_NOTE } from "../baseline";
 import { getLocale } from "../locales";
+import { findStoresNear, type NearbyStores, REGIONAL_FLYER_CAVEAT } from "../location";
 import { NUTRITION_ATTRIBUTION } from "../nutrition";
 import {
   type EnrichedRecipe,
@@ -54,7 +55,11 @@ function formatCookSchedule(result: PlanResult): string[] {
   return lines;
 }
 
-function formatShoppingByStore(result: PlanResult, currency: string): string[] {
+function formatShoppingByStore(
+  result: PlanResult,
+  currency: string,
+  nearby?: NearbyStores | null,
+): string[] {
   const byStore = new Map<string, string[]>();
   const seen = new Set<string>();
   for (const day of result.days) {
@@ -75,8 +80,15 @@ function formatShoppingByStore(result: PlanResult, currency: string): string[] {
   const lines: string[] = ["\n## Indkøbsliste (tilbudsvarer, pr. butik)"];
   if (byStore.size === 0) lines.push("(ingen tilbudsvarer matchet i denne plan)");
   for (const [storeName, items] of [...byStore.entries()].sort()) {
-    lines.push(`\n### ${storeName}`);
+    const branch = nearby?.nearestByChain.get(storeName);
+    const branchNote = branch
+      ? ` — nærmeste: ${branch.name || branch.street}, ${branch.street}, ${branch.zip} ${branch.city} (${branch.distanceKm} km)`
+      : "";
+    lines.push(`\n### ${storeName}${branchNote}`);
     lines.push(...items.sort());
+  }
+  if (nearby) {
+    lines.push(`\n_${REGIONAL_FLYER_CAVEAT}_`);
   }
   if (result.baseline.lines.length > 0) {
     lines.push(`\n### Basisvarer (estimeret — intet aktuelt tilbud)`);
@@ -133,7 +145,11 @@ function formatKcal(result: PlanResult): string[] {
   return lines;
 }
 
-export function formatPlanResult(result: PlanResult, currency: string): string {
+export function formatPlanResult(
+  result: PlanResult,
+  currency: string,
+  nearby?: NearbyStores | null,
+): string {
   const noteLines =
     result.notes.length > 0 ? ["\n## Bemærk", ...result.notes.map((n) => `- ${n}`)] : [];
   return [
@@ -141,7 +157,7 @@ export function formatPlanResult(result: PlanResult, currency: string): string {
     ...formatCookSchedule(result),
     ...noteLines,
     ...formatKcal(result),
-    ...formatShoppingByStore(result, currency),
+    ...formatShoppingByStore(result, currency, nearby),
     ...formatTotals(result, currency),
     `\n_${BASELINE_NOTE}_`,
     `_${NUTRITION_ATTRIBUTION}_`,
@@ -204,6 +220,19 @@ export function registerPlannerTools(server: McpServer): void {
         .array(z.number().int().min(1))
         .optional()
         .describe("1-indexed cook days for meal_prep (default [1, 4], e.g. Sunday + Wednesday)"),
+      location: z
+        .string()
+        .optional()
+        .describe(
+          'Danish address or "lat,lng" — chains with a branch within radius_km rank higher, and the shopping list shows the nearest branch per store',
+        ),
+      radius_km: z
+        .number()
+        .positive()
+        .max(25)
+        .optional()
+        .default(3)
+        .describe("Radius for location-aware ranking (default 3 km)"),
       maxPerProtein: z.number().int().positive().optional().default(2),
       maxPerCuisine: z.number().int().positive().optional().default(2),
       maxSlowDays: z.number().int().min(0).optional().default(2),
@@ -218,6 +247,8 @@ export function registerPlannerTools(server: McpServer): void {
       max_cook_minutes,
       meal_prep,
       cook_days,
+      location,
+      radius_km,
       maxPerProtein,
       maxPerCuisine,
       maxSlowDays,
@@ -228,6 +259,18 @@ export function registerPlannerTools(server: McpServer): void {
         const pantry = await store.getPantry();
         const pantrySet = new Set(pantry.map((p) => p.toLowerCase()));
         const preferredStores = new Set(household.stores.map((s) => s.name));
+
+        // Location awareness: chains with a branch inside the radius get the
+        // same scoring boost as preferred stores.
+        let nearby: NearbyStores | null = null;
+        if (location) {
+          nearby = await findStoresNear(location, radius_km);
+          if (nearby) {
+            for (const brand of nearby.nearestByChain.keys()) {
+              preferredStores.add(brand);
+            }
+          }
+        }
         const householdSize = people ?? (household.people.length || household.defaultServings);
 
         // "vegetarian" shorthand expands to the concrete exclusion tags.
@@ -285,8 +328,13 @@ export function registerPlannerTools(server: McpServer): void {
           );
         }
 
+        const text = formatPlanResult(result, locale.currency, nearby);
+        const locationNote =
+          location && !nearby
+            ? `\n\n⚠️ Kunne ikke finde "${location}" — planen er lavet uden lokations-boost.`
+            : "";
         return {
-          content: [{ type: "text" as const, text: formatPlanResult(result, locale.currency) }],
+          content: [{ type: "text" as const, text: text + locationNote }],
         };
       } catch (err) {
         return errorResult(`Failed to plan week: ${err instanceof Error ? err.message : err}`);

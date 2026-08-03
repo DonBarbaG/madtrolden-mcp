@@ -11,6 +11,7 @@ import { registerProfileTools } from "./tools/profile";
 import { registerRecipeTools } from "./tools/recipes";
 import { registerScoringTools } from "./tools/scoring";
 import { registerShoppingTools } from "./tools/shopping";
+import { registerStoreLocationTools } from "./tools/stores";
 import { registerTrackingTools } from "./tools/tracking";
 import { registerWhoamiTool } from "./tools/whoami";
 
@@ -33,11 +34,12 @@ Set country via update_household. Search terms must be in the local language (Da
 
 ## Tool groups
 
-### Deals
+### Deals & stores
 - search_deals: find products by keyword across stores
 - get_store_offers: browse one store's catalog
 - list_stores: discover dealer IDs for household setup
 - deals_this_week: roll-up of preferred-store offers, with expiring deals flagged
+- find_stores_near: physical branches near a Danish address, with distances (Denmark only)
 
 ### Household
 - get_household / update_household: people, dietary restrictions, preferred stores, country, default servings
@@ -98,6 +100,7 @@ export function registerAll(server: McpServer): void {
   registerTrackingTools(server);
   registerShoppingTools(server);
   registerPlannerTools(server);
+  registerStoreLocationTools(server);
   registerProfileTools(server);
   registerWhoamiTool(server);
 }

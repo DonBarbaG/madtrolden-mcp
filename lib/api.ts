@@ -38,6 +38,20 @@ export interface Dealer {
   country: string;
 }
 
+/** A physical store branch (from the Tjek /v2/stores endpoint). */
+export interface StoreBranch {
+  id: string;
+  name: string;
+  street: string;
+  city: string;
+  zip: string;
+  lat: number;
+  lng: number;
+  dealerId: string;
+  /** Chain name, e.g. "REMA 1000". */
+  brand: string;
+}
+
 interface RawOffer {
   id: string;
   heading: string;
@@ -223,12 +237,14 @@ const ONE_DAY = 24 * 60 * 60 * 1000;
 const searchCache = new TtlCache<Offer[]>(SIX_HOURS, "offers/search");
 const storeOffersCache = new TtlCache<Offer[]>(SIX_HOURS, "offers/store");
 const dealersCache = new TtlCache<Dealer[]>(ONE_DAY, "dealers");
+const branchesCache = new TtlCache<StoreBranch[]>(ONE_DAY, "stores/geo");
 
 /** Test hook: clear all upstream response caches. */
 export function clearApiCaches(): void {
   searchCache.clear();
   storeOffersCache.clear();
   dealersCache.clear();
+  branchesCache.clear();
 }
 
 // --- Country-based store filter ---
@@ -315,6 +331,63 @@ export async function searchDealsBatch(
 
   const results = await withConcurrencyLimit(tasks, MAX_CONCURRENT);
   return new Map(results);
+}
+
+/**
+ * Physical branches near a point via the Tjek /v2/stores geo params
+ * (verified empirically in Phase 0: r_lat/r_lng honored, r_radius in
+ * meters). Response is not reliably distance-sorted — callers sort by
+ * haversine. Malformed entries are skipped, never fatal.
+ */
+export async function getStoresNear(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  limit = 100,
+): Promise<StoreBranch[]> {
+  const cacheKey = `${lat.toFixed(3)}|${lng.toFixed(3)}|${radiusKm}|${limit}`;
+  return branchesCache.getOrFetch(cacheKey, async () => {
+    const params = new URLSearchParams({
+      r_lat: String(lat),
+      r_lng: String(lng),
+      r_radius: String(Math.round(radiusKm * 1000)),
+      limit: String(limit),
+      country_id: "DK",
+    });
+
+    interface RawStore {
+      id: string;
+      name: string | null;
+      street: string | null;
+      city: string | null;
+      zip_code: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      dealer_id: string;
+      branding: { name: string | null } | null;
+      dealer: { name: string | null } | null;
+    }
+
+    const raw = await fetchJson<RawStore[]>(`${BASE_URL}/stores?${params}`);
+    const branches: StoreBranch[] = [];
+    for (const s of raw) {
+      if (typeof s?.latitude !== "number" || typeof s?.longitude !== "number" || !s.dealer_id) {
+        continue; // schema drift: skip, don't crash
+      }
+      branches.push({
+        id: s.id,
+        name: s.name ?? "",
+        street: s.street ?? "",
+        city: s.city ?? "",
+        zip: s.zip_code ?? "",
+        lat: s.latitude,
+        lng: s.longitude,
+        dealerId: s.dealer_id,
+        brand: s.branding?.name ?? s.dealer?.name ?? "Unknown",
+      });
+    }
+    return branches;
+  });
 }
 
 export async function listStores(countryId = "DK"): Promise<Dealer[]> {
