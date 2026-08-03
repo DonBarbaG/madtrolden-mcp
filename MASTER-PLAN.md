@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 5 / 34 done — ~15%** (task-count, each item = 1; last updated 2026-08-03)
+**Progress: 15 / 34 done — ~44%** (task-count, each item = 1; last updated 2026-08-03)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -20,16 +20,16 @@ First session, no own velocity history yet. Phase 0 took ~0.5h wall. Remaining 2
 
 ## PHASE 1 — Remote + auth + cache
 
-- [ ] 6. Next.js scaffold [me] ⏾ — minimal App Router project, no UI framework; keep vitest + biome working; stdio entrypoint stays (`npm run dev:stdio`).
-- [ ] 7. Port `src/` → `lib/` [me] ⏾ — move all base logic untouched, fix imports, 380 tests still green.
-- [ ] 8. `/api/mcp` via mcp-handler [me] ⏾ — Streamable HTTP, all existing tools registered.
-- [ ] 9. Auth [me] ⏾ — `ACCESS_KEYS` name:key pairs, Bearer + path-key fallback `/api/mcp/<key>`, `crypto.timingSafeEqual`, uniform 401, loud boot failure on malformed env. `npm run genkey <name>` script.
-- [ ] 10. Rate limiting [me] ⏾ — in-memory token bucket ~60/min per key + ~300/min global, 429 + Retry-After.
-- [ ] 11. Deals cache [me] ⏾ — shared Map, offers TTL 6h, dealers 24h, stores 24h; RAM only.
-- [ ] 12. `whoami` tool [me] ⏾ — account name, cached-profile exists?, cache age.
-- [ ] 13. Landing page `/` [me] ⏾ — one boring static page, zero data.
-- [ ] 14. Deploy to Vercel [both] — region arn1/fra1, env vars set. May need Ludwig if `vercel` CLI unauthed.
-- [ ] 15. Phase-1 acceptance [both] — Ludwig (or rig) connects from Claude Code with valid key, `search_deals("hakket oksekød")` live; wrong key → clean 401; duplicate search hits cache (logs).
+- [x] 6. Next.js scaffold [me] ⏾ — minimal App Router project, no UI framework; keep vitest + biome working; stdio entrypoint stays (`npm run dev:stdio`).
+- [x] 7. Port `src/` → `lib/` [me] ⏾ — move all base logic untouched, fix imports, 380 tests still green.
+- [x] 8. `/api/mcp` via mcp-handler [me] ⏾ — Streamable HTTP, all existing tools registered.
+- [x] 9. Auth [me] ⏾ — `ACCESS_KEYS` name:key pairs, Bearer + path-key fallback `/api/mcp/<key>`, `crypto.timingSafeEqual`, uniform 401, loud boot failure on malformed env. `npm run genkey <name>` script.
+- [x] 10. Rate limiting [me] ⏾ — in-memory token bucket ~60/min per key + ~300/min global, 429 + Retry-After.
+- [x] 11. Deals cache [me] ⏾ — shared Map, offers TTL 6h, dealers 24h, stores 24h; RAM only.
+- [x] 12. `whoami` tool [me] ⏾ — account name, cached-profile exists?, cache age.
+- [x] 13. Landing page `/` [me] ⏾ — one boring static page, zero data.
+- [x] 14. Deploy to Vercel [both] — region arn1/fra1, env vars set. May need Ludwig if `vercel` CLI unauthed.
+- [x] 15. Phase-1 acceptance [both] ~90% — verified vs deployed https://madtrolden-mcp.vercel.app with curl-as-MCP-client: live hakket-oksekød deals, wrong key → uniform 401, dup search cache-hit (log-proven in prod-mode locally, same build). Remaining 10%: Ludwig connecting from his own Claude app.
 
 ## PHASE 2 — Profiles (client-held state)
 

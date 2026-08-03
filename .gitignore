@@ -26,3 +26,4 @@ next-env.d.ts
 # keep project notes tracked despite upstream's CLAUDE.md ignore
 !.claude/CLAUDE.md
 !.claude/CONSENT.md
+.vercel
