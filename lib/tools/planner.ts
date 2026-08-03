@@ -112,8 +112,11 @@ function formatKcal(result: PlanResult): string[] {
 }
 
 export function formatPlanResult(result: PlanResult, currency: string): string {
+  const noteLines =
+    result.notes.length > 0 ? ["\n## Bemærk", ...result.notes.map((n) => `- ${n}`)] : [];
   return [
     ...formatDays(result, currency),
+    ...noteLines,
     ...formatKcal(result),
     ...formatShoppingByStore(result, currency),
     ...formatTotals(result, currency),

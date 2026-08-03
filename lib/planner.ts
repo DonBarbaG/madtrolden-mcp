@@ -70,6 +70,8 @@ export interface PlanResult {
     unscoredIngredients: string[];
   };
   relaxSuggestions: string[];
+  /** Honest caveats: auto-relaxed variety caps, repeated recipes, etc. */
+  notes: string[];
 }
 
 /** Enrich scored recipes with baseline costs and nutrition. */
@@ -217,30 +219,62 @@ function localSearch(
 
 export function planWeek(pool: EnrichedRecipe[], opts: PlanWeekOptions): PlanResult | null {
   const slots = opts.days * opts.meals.length;
+  const notes: string[] = [];
   const eligible = applyDietExclusions(
     // Stable order: cheapest first, name tiebreak → deterministic.
     [...pool].sort((a, b) => a.fullCost - b.fullCost || a.scored.name.localeCompare(b.scored.name)),
     opts.constraints,
   );
-  if (eligible.length < slots) return null;
+  if (eligible.length === 0) return null;
+
+  // Auto-relax variety caps to what the eligible pool's diversity allows —
+  // e.g. an all-vegetarian pool shares one proteinType, so maxPerProtein=2
+  // would make ANY vegetarian week impossible. Relaxations are reported.
+  const distinctProteins = new Set(eligible.map((e) => e.scored.proteinType)).size;
+  const distinctCuisines = new Set(eligible.map((e) => e.scored.cuisineType)).size;
+  const neededPerProtein = Math.ceil(slots / distinctProteins);
+  const neededPerCuisine = Math.ceil(slots / distinctCuisines);
+  const constraints: VarietyConstraints = { ...opts.constraints };
+  if (neededPerProtein > constraints.maxPerProtein) {
+    constraints.maxPerProtein = neededPerProtein;
+    notes.push(
+      `variety cap on protein auto-raised to ${neededPerProtein} (only ${distinctProteins} protein type(s) available after exclusions)`,
+    );
+  }
+  if (neededPerCuisine > constraints.maxPerCuisine) {
+    constraints.maxPerCuisine = neededPerCuisine;
+    notes.push(
+      `variety cap on cuisine auto-raised to ${neededPerCuisine} (only ${distinctCuisines} cuisine(s) available after exclusions)`,
+    );
+  }
+  const effectiveOpts: PlanWeekOptions = { ...opts, constraints };
 
   const mealShare = opts.meals.reduce((sum, m) => sum + (MEAL_KCAL_SHARE[m] ?? 0), 0);
   const effectiveDailyTarget = opts.kcalPerPersonPerDay
     ? Math.round(opts.kcalPerPersonPerDay * mealShare)
     : null;
 
-  // Greedy seed: cheapest recipes that keep variety valid.
-  const state: VarietyState = { used: new Set(), protein: {}, cuisine: {}, slow: 0 };
-  const seed: EnrichedRecipe[] = [];
-  for (const e of eligible) {
-    if (seed.length >= slots) break;
-    if (!fits(e, state, opts.constraints)) continue;
-    seed.push(e);
-    record(e, state);
+  let plan: EnrichedRecipe[];
+  if (eligible.length < slots) {
+    // Pool smaller than the week: cycle recipes (cheapest first) and say so —
+    // a repeated dinner beats refusing to plan at all.
+    plan = Array.from({ length: slots }, (_, i) => eligible[i % eligible.length]);
+    notes.push(
+      `only ${eligible.length} eligible recipe(s) for ${slots} meal slot(s) — some repeat; add more recipes (add_recipe) for variety`,
+    );
+  } else {
+    // Greedy seed: cheapest recipes that keep variety valid.
+    const state: VarietyState = { used: new Set(), protein: {}, cuisine: {}, slow: 0 };
+    const seed: EnrichedRecipe[] = [];
+    for (const e of eligible) {
+      if (seed.length >= slots) break;
+      if (!fits(e, state, constraints)) continue;
+      seed.push(e);
+      record(e, state);
+    }
+    if (seed.length < slots) return null;
+    plan = localSearch(seed, eligible, effectiveOpts, effectiveDailyTarget);
   }
-  if (seed.length < slots) return null;
-
-  const plan = localSearch(seed, eligible, opts, effectiveDailyTarget);
 
   // Assemble result
   const days: PlanDay[] = [];
@@ -274,6 +308,12 @@ export function planWeek(pool: EnrichedRecipe[], opts: PlanWeekOptions): PlanRes
   );
   const grandTotal = dealTotal + baseline.total;
   const budgetGap = Math.max(0, Math.round((grandTotal - opts.budget) * 100) / 100);
+
+  if (new Set(plan.map((e) => e.scored.name)).size < plan.length) {
+    notes.push(
+      "deal-item totals assume packs are shared across repeated meals — buy extra if portions run short",
+    );
+  }
 
   const avgKcal = kcalOfPlan(plan, opts.days);
   const withinTolerance =
@@ -314,5 +354,6 @@ export function planWeek(pool: EnrichedRecipe[], opts: PlanWeekOptions): PlanRes
       unscoredIngredients: unscored,
     },
     relaxSuggestions,
+    notes,
   };
 }

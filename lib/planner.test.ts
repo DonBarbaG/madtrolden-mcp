@@ -199,8 +199,32 @@ describe("planWeek", () => {
     }
   });
 
-  it("returns null when there are not enough eligible recipes", () => {
+  it("cycles recipes with an explicit note when the pool is smaller than the week", () => {
     const result = planWeek(makePool().slice(0, 3), opts({ days: 7 }));
+    expect(result).not.toBeNull();
+    const names = result?.days.flatMap((d) => d.meals.map((m) => m.recipe.scored.name)) ?? [];
+    expect(names).toHaveLength(7);
+    expect(new Set(names).size).toBe(3);
+    expect(result?.notes.join(" ")).toContain("some repeat");
+  });
+
+  it("auto-relaxes variety caps for a single-protein pool and says so", () => {
+    const pool = Array.from({ length: 8 }, (_, i) =>
+      makeEnriched({
+        name: `Veg${i}`,
+        cost: 20 + i * 5,
+        protein: "vegetarian",
+        cuisine: ["danish", "italian", "asian", "mexican"][i % 4],
+      }),
+    );
+    const result = planWeek(pool, opts());
+    expect(result).not.toBeNull();
+    expect(result?.days).toHaveLength(7);
+    expect(result?.notes.join(" ")).toContain("protein auto-raised");
+  });
+
+  it("returns null only when nothing is eligible at all", () => {
+    const result = planWeek([], opts());
     expect(result).toBeNull();
   });
 
