@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 48.8 / 50 done — ~98%** (task-count, each item = 1; item 47 ~80%; last updated 2026-08-04)
+**Progress: 48.8 / 50 done — ~98%** (task-count, each item = 1; item 47 ~90%; last updated 2026-08-04)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -85,7 +85,7 @@ Session 1 (2026-08-03) shipped items 1–33 in ~1.5 h wall — far under the 17�
 - [x] 44. Måske-kurv [me] ⏾ — krydderier/olie/condiments klassificeres (flag + ordliste) ud af budgettet, prises som estimater, egen sektion i UI.
 - [x] 45. Hårdt loft håndhævet [me] ⏾ — GPT-reparationsrunder ved overskridelse, derefter deterministisk trim (dyre slots → ugens billigste ret) til planen ER under loftet; kun hvis selv billigst muligt ikke kan, vises ærligt over-budget.
 - [x] 46. Gennemstik + oprydning [me] ⏾ — plan-service kører invent-mode ved ai=true (biblioteksplanlæggeren er kun ikke-ai/fald-tilbage), lib/ai-planner.ts fjernet, UI-tekster opdateret, 13 nye unit tests (450 grønne i alt).
-- [ ] 47. Verificeret live [both] ~80% — scenariet (375 kr / 7 dage / 3 måltider / veg+glutenfri+mælkefri / 1850 kcal) kørt lokalt mod ægte tilbud + gpt-5.5: 344 kr, feasible, kcal 1876, måske-kurv 134 kr udenfor loftet, trim håndhævede loftet (4 swaps), ~2m40s. Rest: Ludwig deployer (`vercel deploy --prod` var blokeret for Claude) og trykker planlæg i UI'et.
+- [ ] 47. Verificeret live [both] ~90% (deployet til prod 2026-08-04, dpl_Cxtw…) — scenariet (375 kr / 7 dage / 3 måltider / veg+glutenfri+mælkefri / 1850 kcal) kørt lokalt mod ægte tilbud + gpt-5.5: 344 kr, feasible, kcal 1876, måske-kurv 134 kr udenfor loftet, trim håndhævede loftet (4 swaps), ~2m40s. Rest: Ludwig trykker planlæg i UI’et.
 
 ## PHASE 10 — næringsmål (plottet ind 2026-08-04: "calorie estimator og protein thing — toggle: kender jeg mine makromål eller skal der en quick calc til, lokalt regnet, kun målene sendes")
 
