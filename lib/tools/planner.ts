@@ -3,19 +3,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BASELINE_NOTE } from "../baseline";
-import { getLocale } from "../locales";
-import { findStoresNear, type NearbyStores, REGIONAL_FLYER_CAVEAT } from "../location";
+import { type NearbyStores, REGIONAL_FLYER_CAVEAT } from "../location";
 import { NUTRITION_ATTRIBUTION } from "../nutrition";
-import {
-  type EnrichedRecipe,
-  enrichRecipes,
-  MEAL_KCAL_SHARE,
-  type MealType,
-  type PlanResult,
-  planWeek,
-} from "../planner";
-import * as store from "../store";
-import { scoreAllRecipes } from "./scoring";
+import { runPlanWeek } from "../plan-service";
+import { MEAL_KCAL_SHARE, type MealType, type PlanResult } from "../planner";
 import { errorResult } from "./shared";
 
 function formatDays(result: PlanResult, currency: string): string[] {
@@ -254,83 +245,33 @@ export function registerPlannerTools(server: McpServer): void {
       maxSlowDays,
     }) => {
       try {
-        const household = await store.getHousehold();
-        const locale = getLocale(household.country);
-        const pantry = await store.getPantry();
-        const pantrySet = new Set(pantry.map((p) => p.toLowerCase()));
-        const preferredStores = new Set(household.stores.map((s) => s.name));
-
-        // Location awareness: chains with a branch inside the radius get the
-        // same scoring boost as preferred stores.
-        let nearby: NearbyStores | null = null;
-        if (location) {
-          nearby = await findStoresNear(location, radius_km);
-          if (nearby) {
-            for (const brand of nearby.nearestByChain.keys()) {
-              preferredStores.add(brand);
-            }
-          }
-        }
-        const householdSize = people ?? (household.people.length || household.defaultServings);
-
-        // "vegetarian" shorthand expands to the concrete exclusion tags.
-        let exclusions = excludeProteins;
-        if (exclusions?.some((e) => e.toLowerCase() === "vegetarian")) {
-          exclusions = [
-            ...new Set([
-              ...exclusions.filter((e) => e.toLowerCase() !== "vegetarian"),
-              "pork",
-              "beef",
-              "lamb",
-              "fish",
-              "shellfish",
-              "chicken",
-            ]),
-          ];
-        }
-
-        const recipes = await store.getRecipes();
-        const { scored } = await scoreAllRecipes(preferredStores, pantrySet, householdSize, locale);
-        let pool: EnrichedRecipe[] = enrichRecipes(scored, recipes, householdSize, pantrySet);
-
-        if (max_cook_minutes !== undefined) {
-          pool = pool.filter((e) => {
-            if (max_cook_minutes < 25) return e.scored.complexity === "quick";
-            if (max_cook_minutes < 45) return e.scored.complexity !== "slow";
-            return true;
-          });
-        }
-
-        const mealTypes = meals as MealType[];
-        const result = planWeek(pool, {
+        const outcome = await runPlanWeek({
           budget,
-          people: householdSize,
+          people,
           days,
-          meals: mealTypes,
+          meals: meals as MealType[],
           kcalPerPersonPerDay: kcal_per_person_per_day,
+          excludeProteins,
+          maxCookMinutes: max_cook_minutes,
           mealPrep: meal_prep,
           cookDays: cook_days,
-          constraints: {
-            maxPerProtein,
-            maxPerCuisine,
-            maxSlowDays,
-            excludeProteins: exclusions,
-            ingredientTags: locale.ingredientTags,
-          },
+          location,
+          radiusKm: radius_km,
+          maxPerProtein,
+          maxPerCuisine,
+          maxSlowDays,
         });
 
-        if (result === null) {
-          const share = mealTypes.reduce((s, m) => s + (MEAL_KCAL_SHARE[m] ?? 0), 0);
+        if (!outcome.ok) {
+          const share = (meals as MealType[]).reduce((s, m) => s + (MEAL_KCAL_SHARE[m] ?? 0), 0);
           return errorResult(
-            `Not enough eligible recipes for ${days} day(s) × ${mealTypes.length} meal(s) after applying exclusions/time limits. ` +
-              `Add more recipes (add_recipe), relax exclusions, or plan fewer days. ` +
-              `(Planned meals would cover ~${Math.round(share * 100)}% of daily kcal.)`,
+            `${outcome.error} (Planned meals would cover ~${Math.round(share * 100)}% of daily kcal.)`,
           );
         }
 
-        const text = formatPlanResult(result, locale.currency, nearby);
+        const text = formatPlanResult(outcome.result, outcome.currency, outcome.nearby);
         const locationNote =
-          location && !nearby
+          location && !outcome.nearby
             ? `\n\n⚠️ Kunne ikke finde "${location}" — planen er lavet uden lokations-boost.`
             : "";
         return {

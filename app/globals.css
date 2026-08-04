@@ -1,0 +1,259 @@
+/* fog — the one design system. canonical tokens (do not edit values). */
+
+:root {
+  --paper: #fafaf8;
+  --fog: #f1f1ee;
+  --hairline: #e5e5e1;
+  --ink: #111111;
+  --quiet: #8a8a86;
+  --steel: #9fb2c0;
+  --focus: #111111;
+  --sage: #7e9b86;
+  --clay: #b08a7e;
+  --overlay-bg: rgba(250, 250, 248, 0.55);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --font-sans: "Neue Haas Grotesk", "Helvetica Neue", -apple-system, system-ui, sans-serif;
+  --meta-size: 11px;
+  --meta-tracking: 0.04em;
+  --radius-card: 4px;
+  --radius-soft: 16px;
+  --ease-fog: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-med: 300ms;
+  --t-slow: 380ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17181a;
+    --fog: #1f2123;
+    --hairline: #2c2f33;
+    --ink: #f4f4f2;
+    --quiet: #8f8f8b;
+    --steel: #9fb2c0;
+    --focus: #babdbf;
+    --overlay-bg: rgba(12, 13, 15, 0.45);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-med: 0ms;
+    --t-slow: 0ms;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+/* --- plan ui (atoms first: button, input, chip, card, meta, rule) --- */
+
+.plan-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 20px 96px;
+}
+
+.meta {
+  font-size: var(--meta-size);
+  letter-spacing: var(--meta-tracking);
+  text-transform: lowercase;
+  color: var(--quiet);
+}
+
+.rule {
+  border: 0;
+  height: 1px;
+  margin: 28px 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--hairline) 18%,
+    var(--hairline) 82%,
+    transparent
+  );
+}
+
+.btn {
+  font: inherit;
+  padding: 9px 18px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  transition: opacity var(--t-med) var(--ease-fog);
+}
+.btn:hover {
+  opacity: 0.85;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--hairline);
+}
+.btn-ghost:hover {
+  border-color: var(--steel);
+  opacity: 1;
+}
+
+.input {
+  font: inherit;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--hairline);
+  background: var(--fog);
+  color: var(--ink);
+  transition: border-color var(--t-med) var(--ease-fog);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--steel);
+}
+.input::placeholder {
+  color: var(--quiet);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label {
+  font-size: 12px;
+  color: var(--quiet);
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 560px) {
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chip {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    border-color var(--t-med) var(--ease-fog),
+    background var(--t-med) var(--ease-fog);
+}
+.chip[data-on="true"] {
+  border-color: var(--steel);
+  background: var(--fog);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: var(--paper);
+  box-shadow: var(--shadow-card);
+  padding: 16px 18px;
+}
+
+.bignum {
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.delta-ok {
+  color: var(--sage);
+}
+.delta-bad {
+  color: var(--clay);
+}
+
+.plan-day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+}
+.plan-days {
+  display: flex;
+  flex-direction: column;
+}
+.plan-day + .plan-day {
+  border-top: 1px solid var(--hairline);
+}
+
+.err {
+  color: var(--clay);
+  font-size: 13px;
+}
+
+a {
+  color: inherit;
+}
+
+/* --- print: the pdf is just this page, controls hidden --- */
+@media print {
+  :root {
+    --paper: #ffffff;
+    --fog: #ffffff;
+    --ink: #000000;
+    --quiet: #555555;
+    --hairline: #dddddd;
+    --shadow-card: none;
+  }
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .plan-wrap {
+    max-width: 100%;
+    padding: 0;
+  }
+  .card {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+}
