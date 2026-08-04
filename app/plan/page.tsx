@@ -362,7 +362,7 @@ export default function PlanPage() {
           <hr className="rule" />
 
           <div
-            className="card"
+            className="card pop pop-1"
             style={{ display: "flex", gap: 32, flexWrap: "wrap", alignItems: "baseline" }}
           >
             <div>
@@ -391,8 +391,10 @@ export default function PlanPage() {
             </p>
           )}
 
-          <h2 style={{ fontWeight: 500, fontSize: 16, marginTop: 28 }}>ugeplan</h2>
-          <div className="plan-days">
+          <h2 className="pop pop-2" style={{ fontWeight: 500, fontSize: 16, marginTop: 28 }}>
+            ugeplan
+          </h2>
+          <div className="plan-days pop pop-2">
             {r.days.map((d) => (
               <div key={d.day} className="plan-day">
                 <span className="meta">
@@ -414,7 +416,7 @@ export default function PlanPage() {
           </div>
 
           {r.cookSchedule && r.cookSchedule.length > 0 && (
-            <>
+            <div className="pop pop-3">
               <h2 style={{ fontWeight: 500, fontSize: 16, marginTop: 28 }}>madlavningsdage</h2>
               {r.cookSchedule.map((b) => (
                 <p key={`${b.day}-${b.mealType}-${b.recipeName}`} style={{ margin: "4px 0" }}>
@@ -425,20 +427,22 @@ export default function PlanPage() {
                   </span>
                 </p>
               ))}
-            </>
+            </div>
           )}
 
-          <ShoppingList plan={plan} />
+          <div className="pop pop-4">
+            <ShoppingList plan={plan} />
+          </div>
 
           {r.notes.length > 0 && (
-            <>
+            <div className="pop pop-5">
               <h2 style={{ fontWeight: 500, fontSize: 16, marginTop: 28 }}>bemærk</h2>
               {r.notes.map((n) => (
                 <p key={n} className="meta" style={{ margin: "4px 0" }}>
                   {n}
                 </p>
               ))}
-            </>
+            </div>
           )}
 
           <hr className="rule" />
