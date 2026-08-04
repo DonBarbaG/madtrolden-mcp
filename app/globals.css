@@ -159,7 +159,8 @@ body {
   flex-direction: column;
   gap: 6px;
 }
-.field label {
+.field label,
+.field .field-label {
   font-size: 12px;
   color: var(--quiet);
 }

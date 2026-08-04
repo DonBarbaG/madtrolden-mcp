@@ -356,7 +356,7 @@ export default function PlanPage() {
         </div>
 
         <div style={{ marginTop: 16 }} className="field">
-          <label>måltider</label>
+          <span className="field-label">måltider</span>
           <div className="chip-row">
             {(Object.keys(MEAL_LABELS) as MealType[]).map((m) => (
               <button
@@ -381,7 +381,7 @@ export default function PlanPage() {
         </div>
 
         <div style={{ marginTop: 16 }} className="field">
-          <label>kost</label>
+          <span className="field-label">kost</span>
           <div className="chip-row">
             {DIET_OPTIONS.map((d) => (
               <button
@@ -398,11 +398,14 @@ export default function PlanPage() {
         </div>
 
         <div style={{ marginTop: 16 }} className="field">
-          <label>kcal pr. dag, pr. person (valgfrit — fælles retter, portioner skaleres)</label>
+          <span className="field-label">
+            kcal pr. dag, pr. person (valgfrit — fælles retter, portioner skaleres)
+          </span>
           <div className="chip-row">
             {kcalPerPerson.map((value, i) => (
               <input
-                // eslint-disable-next-line react/no-array-index-key
+                // The list is positional by nature (person 1..N) — index IS the identity.
+                // biome-ignore lint/suspicious/noArrayIndexKey: positional inputs
                 key={i}
                 className="input"
                 style={{ width: 130 }}
