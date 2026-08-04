@@ -416,6 +416,36 @@ export function buildInventedRecipes(
   return { recipes: [...byName.values()], maybeItems };
 }
 
+// Plant-based analogs that substring-match animal patterns ("kokosMÆLK" hits
+// the dairy tag "mælk") — stripped from names before the exclusion check so
+// dairy-free/vegan inventions aren't rejected as violations.
+const PLANT_ANALOGS = [
+  "kokosmælk",
+  "havremælk",
+  "sojamælk",
+  "mandelmælk",
+  "rismælk",
+  "risdrik",
+  "havredrik",
+  "sojadrik",
+  "mandeldrik",
+  "plantefløde",
+  "havrefløde",
+  "sojafløde",
+  "kokosfløde",
+  "jordnøddesmør",
+  "peanutbutter",
+  "mandelsmør",
+];
+
+export function stripPlantAnalogs(name: string): string {
+  let out = name.toLowerCase();
+  for (const analog of PLANT_ANALOGS) {
+    out = out.replaceAll(analog, "");
+  }
+  return out;
+}
+
 // --- Plan building ---
 
 function buildPlanDays(
@@ -532,9 +562,14 @@ export function trimToBudget(
 // --- Entry point ---
 
 const MAX_ATTEMPTS = 3;
+// Stay inside the route's 300s cap: no new GPT attempt starts unless this
+// much of the total budget is still left for it.
+const TOTAL_BUDGET_MS = 280_000;
+const PER_ATTEMPT_MS = 155_000;
 
 export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
   const { opts, locale, pantrySet, preferredStores } = input;
+  const startedAt = Date.now();
 
   const sweepMap = await searchDealsBatch(SWEEP_TERMS, 8, locale.country);
   const catalog = buildDealCatalog(sweepMap);
@@ -554,6 +589,9 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
   } | null = null;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0 && Date.now() - startedAt > TOTAL_BUDGET_MS - PER_ATTEMPT_MS) {
+      break; // no room for another round — enforce the cap with what we have
+    }
     const response = await askJson<AiInventResponse>(
       SYSTEM_PROMPT,
       buildUserPrompt(input, catalog, repairNote),
@@ -594,7 +632,7 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
         .map((s) => ({
           name: s.name,
           tag: findExcludedTag(
-            s.ingredients,
+            s.ingredients.map((i) => ({ ...i, name: stripPlantAnalogs(i.name) })),
             opts.constraints.excludeProteins ?? [],
             opts.constraints.ingredientTags,
           ),

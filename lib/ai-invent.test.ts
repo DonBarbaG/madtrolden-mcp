@@ -13,6 +13,7 @@ import {
   buildMaybeBucket,
   isMaybeIngredient,
   normalizeInventResponse,
+  stripPlantAnalogs,
   trimToBudget,
 } from "./ai-invent";
 import type { Offer } from "./api";
@@ -326,5 +327,13 @@ describe("trimToBudget", () => {
         [],
       );
     expect(trimToBudget(days, byName, o, build)).toBeNull();
+  });
+});
+
+describe("stripPlantAnalogs", () => {
+  it("removes plant-based analogs so they don't hit animal exclusion tags", () => {
+    expect(stripPlantAnalogs("Kokosmælk")).not.toContain("mælk");
+    expect(stripPlantAnalogs("jordnøddesmør")).not.toContain("smør");
+    expect(stripPlantAnalogs("letmælk")).toContain("mælk"); // real dairy stays
   });
 });
