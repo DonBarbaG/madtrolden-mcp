@@ -17,6 +17,7 @@ import {
   type PlannedMeal,
   type PlanResult,
   type PlanWeekOptions,
+  planWeek,
 } from "./planner";
 import type { Recipe } from "./store";
 
@@ -73,6 +74,11 @@ function buildUserPrompt(
   if (opts.kcalPerPersonPerDay) {
     parts.push(
       `Kaloriemål: ${opts.kcalPerPersonPerDay} kcal/person/dag for HELE dagen — de planlagte måltider skal ramme deres rimelige andel (morgenmad ~25%, frokost ~35%, aftensmad ~40%), ±10%.`,
+    );
+  }
+  if (opts.kcalPerPerson && opts.kcalPerPerson.length > 0) {
+    parts.push(
+      `Individuelle kaloriemål: ${opts.kcalPerPerson.map((k, i) => `person ${i + 1}: ${k} kcal/dag`).join(", ")}. Måltiderne er fælles — systemet skalerer portionsstørrelser pr. person bagefter, så sigt efter gennemsnittet.`,
     );
   }
   if (opts.constraints.excludeProteins?.length) {
@@ -139,10 +145,7 @@ export type AiPlanOutcome =
 export async function aiPlanWeek(input: AiPlanInput): Promise<AiPlanOutcome> {
   const { opts, wishes } = input;
   if (opts.mealPrep) {
-    return {
-      ok: false,
-      error: "ai-tilstand understøtter ikke meal prep endnu (deterministisk plan bruges)",
-    };
+    return aiPlanPrep(input);
   }
 
   const poolByMeal = new Map<MealType, EnrichedRecipe[]>();
@@ -251,4 +254,84 @@ function buildFromAiResponse(
   }
 
   return { ok: true, result: assembleResult(days, opts, []) };
+}
+
+// --- AI + meal prep: the model curates WHICH batchable recipes to use and
+// in what priority; the deterministic block engine decides WHEN and does all
+// arithmetic. Composition over reinvention.
+
+interface AiPrepResponse {
+  picks: Array<{ mealType: string; recipes: string[] }>;
+  rejectedDeals?: Array<{ recipe: string; ingredient: string; reason: string }>;
+  reasoning?: string;
+  tips?: string[];
+}
+
+const PREP_SYSTEM_PROMPT = `Du er en omhyggelig dansk madplanlægger med fokus på MEAL PREP: brugeren laver mad få gange om ugen og spiser rester. Du får en pulje af opskrifter med RIGTIGE tilbudspriser. Din opgave: vælg pr. måltidstype en PRIORITERET liste af opskrifter der egner sig til batch (batchable, holder flest dage), smager godt som rester, giver variation og respekterer budget og ønsker. Systemet lægger selv batchene på kalenderen bagefter — du vælger kvaliteten.
+
+Du skal OGSÅ auditere tilbudsmatchene som beskrevet: åbenlyst forkerte matches afvises i rejectedDeals.
+
+Svar KUN med gyldig JSON:
+{"picks":[{"mealType":"dinner","recipes":["<eksakt navn>", "..."]}],"rejectedDeals":[{"recipe":"...","ingredient":"...","reason":"..."}],"reasoning":"2-4 sætninger","tips":["korte råd"]}
+
+Regler: kun eksakte navne fra puljen; mindst 2 og højst 6 opskrifter pr. måltidstype, bedst egnede først.`;
+
+async function aiPlanPrep(input: AiPlanInput): Promise<AiPlanOutcome> {
+  const { opts, wishes } = input;
+  const poolByMeal = new Map<MealType, EnrichedRecipe[]>();
+  for (const meal of opts.meals) {
+    const pool = input.pool.filter((e) => mealTypeOf(e) === meal);
+    if (pool.length === 0) return { ok: false, error: `ingen opskrifter til ${meal}` };
+    poolByMeal.set(meal, pool);
+  }
+
+  const response = await askJson<AiPrepResponse>(
+    PREP_SYSTEM_PROMPT,
+    buildUserPrompt(poolByMeal, opts, wishes, undefined),
+  );
+  if (!response.ok) return { ok: false, error: response.error };
+
+  const rejectedByRecipe = new Map<string, Set<string>>();
+  for (const r of response.value.rejectedDeals ?? []) {
+    const set = rejectedByRecipe.get(r.recipe) ?? new Set<string>();
+    set.add(r.ingredient.toLowerCase());
+    rejectedByRecipe.set(r.recipe, set);
+  }
+
+  // Restrict each meal pool to the AI's picks (in its priority order); fall
+  // back to the full pool if the picks don't validate.
+  const curated: EnrichedRecipe[] = [];
+  for (const meal of opts.meals) {
+    const pool = poolByMeal.get(meal) ?? [];
+    const byName = new Map(pool.map((e) => [e.scored.name.toLowerCase(), e]));
+    const pickNames = response.value.picks?.find((p) => p.mealType === meal)?.recipes ?? [];
+    let picked = pickNames
+      .map((n) => byName.get(n.toLowerCase().trim()))
+      .filter((e): e is EnrichedRecipe => e !== undefined);
+    if (picked.length < 2) picked = pool;
+    curated.push(
+      ...picked.map((e) => {
+        const rejected = rejectedByRecipe.get(e.scored.name);
+        return rejected && rejected.size > 0
+          ? applyDealRejections(e, rejected, input.recipes, opts.people, input.pantrySet)
+          : e;
+      }),
+    );
+  }
+
+  const result = planWeek(curated, opts);
+  if (result === null) {
+    return { ok: false, error: "kunne ikke bygge en prep-plan fra ai'ens valg" };
+  }
+  return {
+    ok: true,
+    result,
+    extras: {
+      used: true,
+      model: response.model,
+      reasoning: response.value.reasoning,
+      tips: response.value.tips?.slice(0, 6),
+      rejectedDeals: response.value.rejectedDeals?.slice(0, 20),
+    },
+  };
 }

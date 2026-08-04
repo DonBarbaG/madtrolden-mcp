@@ -48,6 +48,12 @@ interface PlanJson {
       avgPerDay: number | null;
       withinTolerance: boolean | null;
       unscoredIngredients: string[];
+      portioning?: Array<{
+        person: number;
+        targetKcal: number;
+        factor: number;
+        avgKcalPerDay: number | null;
+      }>;
     };
     notes: string[];
     relaxSuggestions: string[];
@@ -95,7 +101,7 @@ export default function PlanPage() {
   const [people, setPeople] = useState("2");
   const [days, setDays] = useState("7");
   const [meals, setMeals] = useState<MealType[]>(["dinner"]);
-  const [kcal, setKcal] = useState("");
+  const [kcalPerPerson, setKcalPerPerson] = useState<string[]>(["", ""]);
   const [diet, setDiet] = useState<string[]>([]);
   const [mealPrep, setMealPrep] = useState(false);
   const [location, setLocation] = useState("");
@@ -156,6 +162,15 @@ export default function PlanPage() {
     setDiet((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   }
 
+  // One kcal field per person; the list follows the "personer" count.
+  const peopleCount = Math.max(1, Math.min(8, Number(people) || 1));
+  useEffect(() => {
+    setKcalPerPerson((prev) => {
+      if (prev.length === peopleCount) return prev;
+      return Array.from({ length: peopleCount }, (_, i) => prev[i] ?? "");
+    });
+  }, [peopleCount]);
+
   async function handlePlan(e: React.FormEvent) {
     e.preventDefault();
     if (meals.length === 0) {
@@ -177,22 +192,30 @@ export default function PlanPage() {
           people: Number(people) || undefined,
           days: Number(days) || undefined,
           meals,
-          kcalPerPersonPerDay: kcal ? Number(kcal) : undefined,
+          kcalPerPerson: kcalPerPerson.some((k) => k.trim() !== "")
+            ? kcalPerPerson.map((k) => Number(k) || 0).filter((n) => n > 0)
+            : undefined,
           excludeProteins: diet.length > 0 ? diet : undefined,
           mealPrep,
           location: location.trim() || undefined,
-          ai: useAi && !mealPrep,
+          ai: useAi,
           wishes: wishes.trim() || undefined,
         }),
       });
-      const data = await res.json();
       if (!res.ok) {
-        setPlanError(String(data.error ?? `fejl (${res.status})`));
+        let msg = `fejl (${res.status})`;
+        try {
+          const data = await res.json();
+          if (data?.error) msg = String(data.error);
+        } catch {
+          if (res.status === 504) msg = "serveren brugte for lang tid — prøv igen (evt. uden ai)";
+        }
+        setPlanError(msg);
         return;
       }
-      setPlan(data as PlanJson);
+      setPlan((await res.json()) as PlanJson);
     } catch {
-      setPlanError("kunne ikke nå serveren — prøv igen");
+      setPlanError("mistede forbindelsen til serveren undervejs — prøv igen");
     } finally {
       setLoading(false);
     }
@@ -253,6 +276,48 @@ export default function PlanPage() {
 
       <form onSubmit={handlePlan} className="no-print">
         <hr className="rule" />
+
+        <div
+          className="card"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <p style={{ margin: 0, fontWeight: 500 }}>ai-planlægning</p>
+            <p className="meta" style={{ margin: "2px 0 0" }}>
+              gpt tænker ugen igennem — sammenhæng, smag, luger dårlige tilbudsmatch ud. alle beløb
+              efterregnes.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="chip"
+            data-on={useAi}
+            onClick={() => setUseAi((v) => !v)}
+          >
+            {useAi ? "til" : "fra"}
+          </button>
+        </div>
+
+        {useAi && (
+          <div style={{ marginTop: 14 }} className="field">
+            <label htmlFor="wishes">ønsker til ai&apos;en (fritekst, valgfrit)</label>
+            <input
+              id="wishes"
+              className="input"
+              value={wishes}
+              onChange={(e) => setWishes(e.target.value)}
+              placeholder="fx mere fisk, ingen supper, nem hverdagsmad man-tors"
+            />
+          </div>
+        )}
+
+        <hr className="rule" />
         <div className="grid-3">
           <div className="field">
             <label htmlFor="budget">budget (kr, hårdt loft)</label>
@@ -308,16 +373,6 @@ export default function PlanPage() {
             >
               meal prep (2 madlavningsdage)
             </button>
-            <button
-              type="button"
-              className="chip"
-              data-on={useAi && !mealPrep}
-              disabled={mealPrep}
-              title={mealPrep ? "ai-tilstand understøtter ikke meal prep endnu" : undefined}
-              onClick={() => setUseAi((v) => !v)}
-            >
-              tænk med ai (gpt)
-            </button>
           </div>
         </div>
 
@@ -338,47 +393,42 @@ export default function PlanPage() {
           </div>
         </div>
 
-        <div style={{ marginTop: 16 }} className="grid-2">
-          <div className="field">
-            <label htmlFor="kcal">kcal pr. person pr. dag (valgfrit)</label>
-            <input
-              id="kcal"
-              className="input"
-              inputMode="numeric"
-              value={kcal}
-              onChange={(e) => setKcal(e.target.value)}
-              placeholder="fx 2000"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="loc">adresse (valgfrit — viser nærmeste butikker)</label>
-            <input
-              id="loc"
-              className="input"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="fx istedgade 50, københavn"
-            />
+        <div style={{ marginTop: 16 }} className="field">
+          <label>kcal pr. dag, pr. person (valgfrit — fælles retter, portioner skaleres)</label>
+          <div className="chip-row">
+            {kcalPerPerson.map((value, i) => (
+              <input
+                // eslint-disable-next-line react/no-array-index-key
+                key={i}
+                className="input"
+                style={{ width: 130 }}
+                inputMode="numeric"
+                value={value}
+                onChange={(e) =>
+                  setKcalPerPerson((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
+                }
+                placeholder={`person ${i + 1}`}
+                aria-label={`kcal person ${i + 1}`}
+              />
+            ))}
           </div>
         </div>
 
-        {useAi && !mealPrep && (
-          <div style={{ marginTop: 16 }} className="field">
-            <label htmlFor="wishes">ønsker til ai&apos;en (fritekst, valgfrit)</label>
-            <input
-              id="wishes"
-              className="input"
-              value={wishes}
-              onChange={(e) => setWishes(e.target.value)}
-              placeholder="fx mere fisk, ingen supper, nem hverdagsmad man-tors"
-            />
-          </div>
-        )}
+        <div style={{ marginTop: 16 }} className="field">
+          <label htmlFor="loc">adresse (valgfrit — viser nærmeste butikker)</label>
+          <input
+            id="loc"
+            className="input"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="fx istedgade 50, københavn"
+          />
+        </div>
 
         <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
           <button type="submit" className="btn" disabled={loading}>
             {loading
-              ? useAi && !mealPrep
+              ? useAi
                 ? "tænker… (op til et par minutter)"
                 : "planlægger… (op til ½ minut)"
               : "planlæg ugen"}
@@ -450,12 +500,27 @@ export default function PlanPage() {
 
           {r.kcal.target !== null && (
             <p className="meta" style={{ marginTop: 12 }}>
-              kalorier: mål {r.kcal.target}/dag → {r.kcal.effectiveTarget} for valgte måltider ·
-              planen giver ~{r.kcal.avgPerDay ?? "?"} ·{" "}
+              kalorier: mål {r.kcal.target}/dag (snit) → {r.kcal.effectiveTarget} for valgte
+              måltider · planen giver ~{r.kcal.avgPerDay ?? "?"} ·{" "}
               {r.kcal.withinTolerance ? "inden for ±10%" : "uden for ±10%"}
               {r.kcal.unscoredIngredients.length > 0 &&
                 ` · ikke talt med: ${r.kcal.unscoredIngredients.slice(0, 6).join(", ")}${r.kcal.unscoredIngredients.length > 6 ? "…" : ""}`}
             </p>
+          )}
+          {r.kcal.portioning && r.kcal.portioning.length > 0 && (
+            <div className="card pop pop-2" style={{ marginTop: 12 }}>
+              <p className="meta">portioner pr. person (fælles retter, forskellig størrelse)</p>
+              {r.kcal.portioning.map((p) => (
+                <p key={p.person} style={{ margin: "4px 0" }}>
+                  person {p.person}: tag {p.factor} portion
+                  <span className="meta">
+                    {" "}
+                    · mål {p.targetKcal} kcal/dag
+                    {p.avgKcalPerDay !== null ? ` · får ~${p.avgKcalPerDay} fra planen` : ""}
+                  </span>
+                </p>
+              ))}
+            </div>
           )}
 
           <h2 className="pop pop-2" style={{ fontWeight: 500, fontSize: 16, marginTop: 28 }}>

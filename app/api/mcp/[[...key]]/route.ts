@@ -15,7 +15,8 @@ import { runWithAccount } from "@/lib/http/context";
 import { takeToken } from "@/lib/http/rate-limit";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// plan_week with ai=true can take two model round-trips.
+export const maxDuration = 300;
 
 // mcp-handler 1.x reuses a single stateless transport per handler instance,
 // which only survives ONE request on a warm serverless instance (the second
@@ -34,7 +35,7 @@ function makeMcpHandler(): (req: Request) => Promise<Response> {
     {
       basePath: "/api",
       disableSse: true,
-      maxDuration: 120,
+      maxDuration: 300,
       verboseLogs: false,
     },
   );

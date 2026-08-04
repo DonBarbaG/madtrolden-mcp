@@ -6,7 +6,8 @@
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_MODEL = "gpt-5.5";
-const TIMEOUT_MS = 90_000;
+// Two attempts must fit inside the route's time budget with headroom.
+const TIMEOUT_MS = 75_000;
 
 export type AiJsonResult<T> = { ok: true; value: T; model: string } | { ok: false; error: string };
 

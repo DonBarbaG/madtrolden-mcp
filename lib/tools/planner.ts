@@ -128,6 +128,14 @@ function formatKcal(result: PlanResult): string[] {
   } else {
     lines.push("⚠️ Ingen af opskrifterne kunne kalorie-beregnes.");
   }
+  if (k.portioning && k.portioning.length > 0) {
+    lines.push("Individuelle portioner (fælles retter, forskellig portionsstørrelse):");
+    for (const p of k.portioning) {
+      lines.push(
+        `- Person ${p.person}: mål ${p.targetKcal} kcal/dag → tag ${p.factor} portion${p.avgKcalPerDay !== null ? ` (~${p.avgKcalPerDay} kcal/dag fra de planlagte måltider)` : ""}`,
+      );
+    }
+  }
   if (k.unscoredIngredients.length > 0) {
     lines.push(
       `Ikke-beregnede ingredienser (tæller 0 kcal — tallene er derfor minimumstal): ${k.unscoredIngredients.join(", ")}`,
@@ -189,6 +197,12 @@ export function registerPlannerTools(server: McpServer): void {
         .describe(
           "Daily kcal target per person (whole day). The planner scales it by the share of the day the planned meals cover (breakfast 25% / lunch 35% / dinner 40%), ±10% tolerance.",
         ),
+      kcal_per_person: z
+        .array(z.number().positive())
+        .optional()
+        .describe(
+          "Individual kcal targets, one per person (e.g. [2500, 1800]). Meals are shared; the plan reports per-person portion factors. Overrides kcal_per_person_per_day.",
+        ),
       excludeProteins: z
         .array(z.string())
         .optional()
@@ -247,6 +261,7 @@ export function registerPlannerTools(server: McpServer): void {
       days,
       meals,
       kcal_per_person_per_day,
+      kcal_per_person,
       excludeProteins,
       max_cook_minutes,
       meal_prep,
@@ -268,6 +283,7 @@ export function registerPlannerTools(server: McpServer): void {
           days,
           meals: meals as MealType[],
           kcalPerPersonPerDay: kcal_per_person_per_day,
+          kcalPerPerson: kcal_per_person,
           excludeProteins,
           maxCookMinutes: max_cook_minutes,
           mealPrep: meal_prep,

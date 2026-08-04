@@ -46,11 +46,23 @@ export interface PlanWeekOptions {
   days: number;
   meals: MealType[];
   kcalPerPersonPerDay?: number;
+  /** Individual kcal targets (one per person). Engine targets the mean; the
+   * result reports per-person portion factors so servings can be split. */
+  kcalPerPerson?: number[];
   constraints: VarietyConstraints;
   /** Meal-prep mode: consolidate cooking onto cookDays, schedule leftovers. */
   mealPrep?: boolean;
   /** 1-indexed cook days within the plan (default [1, 4]). */
   cookDays?: number[];
+}
+
+export interface PersonPortioning {
+  person: number; // 1-indexed
+  targetKcal: number;
+  /** Share of a standard serving this person should take (target / mean). */
+  factor: number;
+  /** Their estimated kcal/day from the planned meals at that factor. */
+  avgKcalPerDay: number | null;
 }
 
 export interface PlannedMeal {
@@ -92,6 +104,8 @@ export interface PlanResult {
     avgPerDay: number | null;
     withinTolerance: boolean | null;
     unscoredIngredients: string[];
+    /** Present when individual kcal targets were given. */
+    portioning?: PersonPortioning[];
   };
   relaxSuggestions: string[];
   /** Honest caveats: auto-relaxed variety caps, repeated recipes, etc. */
@@ -368,6 +382,23 @@ export function assembleResult(
       : null;
   const unscored = [...new Set(allMeals.flatMap((m) => m.recipe.nutrition.unscored))].sort();
 
+  // Individual kcal targets: same shared meals, different portion sizes.
+  // factor = person's target / group mean; totals are unchanged because the
+  // factors average to 1 across the household.
+  let portioning: PersonPortioning[] | undefined;
+  if (opts.kcalPerPerson && opts.kcalPerPerson.length > 0) {
+    const mean = opts.kcalPerPerson.reduce((a, b) => a + b, 0) / opts.kcalPerPerson.length;
+    portioning = opts.kcalPerPerson.map((target, i) => {
+      const factor = Math.round((target / mean) * 100) / 100;
+      return {
+        person: i + 1,
+        targetKcal: target,
+        factor,
+        avgKcalPerDay: avgKcal !== null ? Math.round(avgKcal * factor) : null,
+      };
+    });
+  }
+
   const relaxSuggestions: string[] = [];
   if (budgetGap > 0) {
     relaxSuggestions.push(`increase the budget by ~${Math.ceil(budgetGap)} kr`);
@@ -397,6 +428,7 @@ export function assembleResult(
       avgPerDay: avgKcal,
       withinTolerance,
       unscoredIngredients: unscored,
+      portioning,
     },
     relaxSuggestions,
     notes,

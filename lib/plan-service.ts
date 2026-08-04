@@ -23,6 +23,9 @@ export interface PlanRequest {
   days?: number;
   meals?: MealType[];
   kcalPerPersonPerDay?: number;
+  /** Individual kcal targets, one per person — overrides kcalPerPersonPerDay
+   * (engine targets the mean; result reports per-person portion factors). */
+  kcalPerPerson?: number[];
   excludeProteins?: string[];
   maxCookMinutes?: number;
   mealPrep?: boolean;
@@ -101,12 +104,19 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     });
   }
 
+  const kcalList = req.kcalPerPerson?.filter((k) => Number.isFinite(k) && k > 0);
+  const kcalMean =
+    kcalList && kcalList.length > 0
+      ? Math.round(kcalList.reduce((a, b) => a + b, 0) / kcalList.length)
+      : req.kcalPerPersonPerDay;
+
   const opts: PlanWeekOptions = {
     budget: req.budget,
     people: householdSize,
     days,
     meals,
-    kcalPerPersonPerDay: req.kcalPerPersonPerDay,
+    kcalPerPersonPerDay: kcalMean,
+    kcalPerPerson: kcalList && kcalList.length > 0 ? kcalList : undefined,
     mealPrep: req.mealPrep,
     cookDays: req.cookDays,
     constraints: {
