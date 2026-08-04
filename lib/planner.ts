@@ -90,6 +90,13 @@ export interface CookBlock {
   covers: number[];
 }
 
+/** Have-it-or-buy-it condiments/seasonings — priced as estimates, never
+ * counted in the budget cap (AI-invent mode). */
+export interface MaybeBucket {
+  lines: Array<{ name: string; estimate: number | null }>;
+  total: number;
+}
+
 export interface PlanResult {
   feasible: boolean;
   days: PlanDay[];
@@ -112,6 +119,8 @@ export interface PlanResult {
   notes: string[];
   /** Present in meal-prep mode: what to cook when, and what it covers. */
   cookSchedule?: CookBlock[];
+  /** Present in AI-invent mode: condiments/seasonings outside the cap. */
+  maybe?: MaybeBucket;
 }
 
 /** Enrich scored recipes with baseline costs and nutrition. */

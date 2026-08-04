@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 41 / 42 done — ~98%** (task-count, each item = 1; last updated 2026-08-03)
+**Progress: 45 / 47 done — ~96%** (task-count, each item = 1; last updated 2026-08-04)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -78,6 +78,14 @@ Session 1 (2026-08-03) shipped items 1–33 in ~1.5 h wall — far under the 17�
 - [x] 40. AI-planlægger [me] ⏾ — lib/ai-planner.ts: GPT får hele opskriftspuljen med ægte tilbudspriser, komponerer ugen med dømmekraft + auditerer tilbudsmatch (afviste matches ompristes som basisvarer); én reparationsrunde ved budgetoverskridelse; planen genopbygges deterministisk så alle tal er ægte.
 - [x] 41. Gennemstik [me] ⏾ — ai + wishes i plan-service, MCP-værktøjet, /api/plan og UI ("tænk med ai"-chip + ønske-felt + ai-tanke-kort); ærligt fald-tilbage til deterministisk ved enhver fejl.
 - [x] 42. Verificeret live [me] — gpt-5.5 planlagde 3 dage under budget og afviste 2 falske tilbudsmatch (kakaomælk≠mælk, cidereddike≠gurkemeje).
+
+## PHASE 9 — ai opfinder maden (plottet ind 2026-08-04: "fuck opskriftsbogen — ai'en skal selv opfinde retterne ud fra tilbuddene og bruge færrest mulige penge; krydderier i en måske-kurv; hårdt loft er hårdt")
+
+- [x] 43. AI-invent motor [me] ⏾ — lib/ai-invent.ts: bredt tilbuds-sweep → GPT opfinder ugens måltider fra de ægte tilbud (ingen opskriftsbog i ai-mode), målrettet tilbudsopslag på de opfundne ingredienser, alle beløb efterregnet af samme deal/baseline/næringsmotor.
+- [x] 44. Måske-kurv [me] ⏾ — krydderier/olie/condiments klassificeres (flag + ordliste) ud af budgettet, prises som estimater, egen sektion i UI.
+- [x] 45. Hårdt loft håndhævet [me] ⏾ — GPT-reparationsrunder ved overskridelse, derefter deterministisk trim (dyre slots → ugens billigste ret) til planen ER under loftet; kun hvis selv billigst muligt ikke kan, vises ærligt over-budget.
+- [x] 46. Gennemstik + oprydning [me] ⏾ — plan-service kører invent-mode ved ai=true (biblioteksplanlæggeren er kun ikke-ai/fald-tilbage), lib/ai-planner.ts fjernet, UI-tekster opdateret, 13 nye unit tests (450 grønne i alt).
+- [ ] 47. Verificeret live [both] — Ludwigs 375 kr / 7 dage / 3 måltider-scenarie skal give en plan under loftet med morgenmad+frokost (før: "not enough eligible recipes").
 
 ## INBOX — unsorted brain-dumps
 

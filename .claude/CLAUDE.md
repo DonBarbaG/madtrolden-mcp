@@ -17,7 +17,7 @@ Backend "atoms → pages" map — keep current as modules are added:
 
 - **Atoms** (single-purpose, reusable anywhere): `src/api.ts` fetchJson/parseOffer/currency+unit helpers · timing-safe key compare · token bucket · TTL map cache · haversine · zod profile schemas.
 - **Molecules**: Tjek client (searchDeals/getStoreOffers/listStores/stores-geo) · DAWA geocoder · nutrition lookup (alias matching) · baseline-price lookup.
-- **Organisms**: recipe scorer (`scoring.ts`) · week planner/solver (`plan_week`) · meal-prep scheduler · shopping-list builder.
+- **Organisms**: recipe scorer (`scoring.ts`) · week planner/solver (`plan_week`) · meal-prep scheduler · shopping-list builder · AI-invent planner (`lib/ai-invent.ts`: deal sweep → GPT invents meals, no recipe library → engine re-prices; maybe-bucket for condiments; hard-cap trim).
 - **Templates**: MCP tool registrations (`src/tools/*`) — each tool = organism(s) wired to schema'd IO.
 - **Pages**: stdio server entrypoint · `/api/mcp` HTTP endpoint · `/` landing page.
 

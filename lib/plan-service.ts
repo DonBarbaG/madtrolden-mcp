@@ -3,7 +3,7 @@
 // surfaces can never drift apart.
 
 import { aiAvailable } from "./ai";
-import { type AiPlanExtras, aiPlanWeek } from "./ai-planner";
+import { type AiPlanExtras, aiInventWeek } from "./ai-invent";
 import { getLocale } from "./locales";
 import { findStoresNear, type NearbyStores } from "./location";
 import {
@@ -90,20 +90,6 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     }
   }
 
-  const recipes = await store.getRecipes();
-  const { scored } = await scoreAllRecipes(preferredStores, pantrySet, householdSize, locale);
-  let pool: EnrichedRecipe[] = enrichRecipes(scored, recipes, householdSize, pantrySet);
-
-  if (req.maxCookMinutes !== undefined) {
-    pool = pool.filter((e) => {
-      if (req.maxCookMinutes !== undefined && req.maxCookMinutes < 25)
-        return e.scored.complexity === "quick";
-      if (req.maxCookMinutes !== undefined && req.maxCookMinutes < 45)
-        return e.scored.complexity !== "slow";
-      return true;
-    });
-  }
-
   const kcalList = req.kcalPerPerson?.filter((k) => Number.isFinite(k) && k > 0);
   const kcalMean =
     kcalList && kcalList.length > 0
@@ -128,19 +114,22 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     },
   };
 
-  // AI mode: GPT proposes, the deterministic engine re-verifies every number.
-  // Any failure (no key, no credit, bad output) falls back with an honest note.
+  // AI mode: GPT INVENTS the week's meals from the actual deals — no recipe
+  // library involved. The deterministic engine re-prices every invented
+  // ingredient, so no number is the model's word alone. Any failure (no key,
+  // no credit, bad output) falls back to the library planner with a note.
   let aiExtras: AiPlanExtras | null = null;
   if (req.ai) {
     if (!aiAvailable()) {
       aiExtras = { used: false, error: "OPENAI_API_KEY er ikke sat på serveren" };
     } else {
-      const aiOutcome = await aiPlanWeek({
-        pool,
+      const aiOutcome = await aiInventWeek({
         opts,
         wishes: req.wishes,
-        recipes,
         pantrySet,
+        locale,
+        preferredStores,
+        maxCookMinutes: req.maxCookMinutes,
       });
       if (aiOutcome.ok) {
         return {
@@ -153,6 +142,21 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
       }
       aiExtras = { used: false, error: aiOutcome.error };
     }
+  }
+
+  // Deterministic library path (non-AI mode, and the AI fallback).
+  const recipes = await store.getRecipes();
+  const { scored } = await scoreAllRecipes(preferredStores, pantrySet, householdSize, locale);
+  let pool: EnrichedRecipe[] = enrichRecipes(scored, recipes, householdSize, pantrySet);
+
+  if (req.maxCookMinutes !== undefined) {
+    pool = pool.filter((e) => {
+      if (req.maxCookMinutes !== undefined && req.maxCookMinutes < 25)
+        return e.scored.complexity === "quick";
+      if (req.maxCookMinutes !== undefined && req.maxCookMinutes < 45)
+        return e.scored.complexity !== "slow";
+      return true;
+    });
   }
 
   const result = planWeek(pool, opts);

@@ -16,7 +16,7 @@ import {
 import * as store from "../store";
 import { errorResult } from "./shared";
 
-function scoreOneRecipe(
+export function scoreOneRecipe(
   recipe: store.Recipe,
   dealMap: Map<string, Offer[]>,
   preferredStoreNames: Set<string>,

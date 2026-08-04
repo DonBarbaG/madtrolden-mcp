@@ -57,6 +57,10 @@ interface PlanJson {
     };
     notes: string[];
     relaxSuggestions: string[];
+    maybe?: {
+      lines: Array<{ name: string; estimate: number | null }>;
+      total: number;
+    };
     cookSchedule?: Array<{
       day: number;
       mealType: MealType;
@@ -290,8 +294,8 @@ export default function PlanPage() {
           <div>
             <p style={{ margin: 0, fontWeight: 500 }}>ai-planlægning</p>
             <p className="meta" style={{ margin: "2px 0 0" }}>
-              gpt tænker ugen igennem — sammenhæng, smag, luger dårlige tilbudsmatch ud. alle beløb
-              efterregnes.
+              gpt opfinder ugens retter ud fra de faktiske tilbud — billigst muligt, hårdt
+              budgetloft. alle beløb efterregnes.
             </p>
           </div>
           <button
@@ -488,7 +492,7 @@ export default function PlanPage() {
                 </p>
               )}
               <p className="meta" style={{ marginTop: 4 }}>
-                alle beløb er efterregnet deterministisk — ai&apos;en vælger, koden reviderer
+                ai&apos;en opfinder retterne ud fra ugens tilbud — koden efterregner alle beløb
               </p>
             </div>
           )}
@@ -654,6 +658,25 @@ function ShoppingList({ plan }: { plan: PlanJson }) {
           </div>
         );
       })}
+      {r.maybe && r.maybe.lines.length > 0 && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <p style={{ fontWeight: 500, margin: 0 }}>
+            måske-kurv{" "}
+            <span className="meta">
+              · krydderier m.m. du nok har — tjek skabet, ellers ~{r.maybe.total} {plan.currency}{" "}
+              oveni (uden for budgettet)
+            </span>
+          </p>
+          {r.maybe.lines.map((l) => (
+            <p key={l.name} style={{ margin: "4px 0" }}>
+              {l.name}{" "}
+              <span className="meta">
+                {l.estimate !== null ? `~${l.estimate} ${plan.currency}` : "pris ukendt"}
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
       {r.baseline.lines.length > 0 && (
         <div className="card" style={{ marginTop: 12 }}>
           <p style={{ fontWeight: 500, margin: 0 }}>
