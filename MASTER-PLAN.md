@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 48.8 / 50 done — ~98%** (task-count, each item = 1; item 47 ~90%; last updated 2026-08-04)
+**Progress: 52.8 / 55 done — ~96%** (task-count, each item = 1; item 47 ~90%; last updated 2026-08-04)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -92,6 +92,14 @@ Session 1 (2026-08-03) shipped items 1–33 in ~1.5 h wall — far under the 17�
 - [x] 48. Hurtig beregner [me] ⏾ — lib/nutrition-goals.ts (ren atom, unit-testet): Mifflin-St Jeor × aktivitet + mål-delta, protein g/kg pr. mål, 1200 kcal-gulv; regner LOKALT i browseren, kun kcal/protein-målene sendes til serveren.
 - [x] 49. UI-toggle [me] ⏾ — "jeg kender mine mål" / "hurtig beregner" chips på /plan; beregneren har vægt/højde/alder/køn/aktivitet/mål og "brug tallene" der udfylder felterne; proteinfelt (g/dag, fælles) ved siden af kcal-felterne.
 - [x] 50. Protein gennem motoren [me] ⏾ — proteinPerPersonPerDay: route → plan-service → PlanWeekOptions; ai-prompten sigter efter det; assembleResult rapporterer snit-protein/dag mod måltids-skaleret mål; vises i UI-resultatet. Live: 370/375 kr, 92 g mod 90 g mål.
+
+## PHASE 11 — nemt og billigt (plottet ind 2026-08-04: "kald den noget dansk og godt, lav et logo, og indkøbslisten sender mig til Bilka 1-2 timer væk — der skal være en maks radius")
+
+- [x] 51. Hård butiksradius [me] ⏾ — radius er nu en HÅRD grænse, ikke kun en scoring-boost: med adresse sat må kun kæder med filial inden for radiusKm (default 3, clamp 1-25) levere tilbud — i ai-kataloget, deal-matching og indkøbslisten. filterDealMapToStores-atom + ærlig note med de brugte kæder. Live-verificeret: Bilka/Fleggaard/CITTI røg ud på Istedgade/2 km.
+- [x] 52. Radius i UI [me] ⏾ — "maks km til butik"-felt ved siden af adresse.
+- [x] 53. Rebrand [me] ⏾ — madtrolden → **nemt og billigt** (titel nemtogbilligt.app); gpt-image-2-logo (indkøbskurv med ærtebælg-smil) som public/logo.png + app/icon.png favicon; headers på / og /plan. Repo/domæne/internals uændret.
+- [x] 54. Deploy [me] — prod kører rebranded build (madtrolden-mcp.vercel.app).
+- [ ] 55. Domæne [you] — nemtogbilligt.vercel.app-alias er sat men bag Vercels SSO-beskyttelse; tilføj det som project domain i Vercel-dashboardet (Settings → Domains, gratis, 1 min) — eller køb nemtogbilligt.app (koster penge, din beslutning).
 
 ## INBOX — unsorted brain-dumps
 
