@@ -70,6 +70,24 @@ function expandExclusions(excludeProteins?: string[]): string[] | undefined {
   ];
 }
 
+/** Honest note when the hard radius filter shaped the plan. */
+function pushRadiusNote(
+  notes: string[],
+  nearby: NearbyStores | null,
+  allowedStores: Set<string> | null,
+): void {
+  if (!nearby || allowedStores === null) return;
+  if (allowedStores.size === 0) {
+    notes.push(
+      `ingen kæder fundet inden for ${nearby.radiusKm} km — planen bruger kun basisvare-estimater`,
+    );
+  } else {
+    notes.push(
+      `kun butikker inden for ${nearby.radiusKm} km er brugt (${[...allowedStores].sort().join(", ")})`,
+    );
+  }
+}
+
 export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome> {
   const days = req.days ?? 7;
   const meals: MealType[] = req.meals && req.meals.length > 0 ? req.meals : ["dinner"];
@@ -81,12 +99,16 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
   const preferredStores = new Set(household.stores.map((s) => s.name));
   const householdSize = req.people ?? (household.people.length || household.defaultServings);
 
-  // Location awareness: chains with a branch inside the radius get the same
-  // scoring boost as preferred stores.
+  // Location awareness: the radius is a HARD boundary. Chains with a branch
+  // inside it become the ONLY chains that may supply deals — a Bilka two
+  // hours away must never appear in the plan. (They also get the preferred-
+  // store scoring boost.) No location = no filter.
   let nearby: NearbyStores | null = null;
+  let allowedStores: Set<string> | null = null;
   if (req.location) {
     nearby = await findStoresNear(req.location, req.radiusKm ?? 3);
     if (nearby) {
+      allowedStores = new Set(nearby.nearestByChain.keys());
       for (const brand of nearby.nearestByChain.keys()) {
         preferredStores.add(brand);
       }
@@ -134,8 +156,10 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
         locale,
         preferredStores,
         maxCookMinutes: req.maxCookMinutes,
+        allowedStores,
       });
       if (aiOutcome.ok) {
+        pushRadiusNote(aiOutcome.result.notes, nearby, allowedStores);
         return {
           ok: true,
           result: aiOutcome.result,
@@ -150,7 +174,13 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
 
   // Deterministic library path (non-AI mode, and the AI fallback).
   const recipes = await store.getRecipes();
-  const { scored } = await scoreAllRecipes(preferredStores, pantrySet, householdSize, locale);
+  const { scored } = await scoreAllRecipes(
+    preferredStores,
+    pantrySet,
+    householdSize,
+    locale,
+    allowedStores,
+  );
   let pool: EnrichedRecipe[] = enrichRecipes(scored, recipes, householdSize, pantrySet);
 
   if (req.maxCookMinutes !== undefined) {
@@ -172,6 +202,7 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     };
   }
 
+  pushRadiusNote(result.notes, nearby, allowedStores);
   if (aiExtras?.error) {
     result.notes.push(
       `ai-laget kunne ikke bruges (${aiExtras.error}) — deterministisk plan i stedet`,

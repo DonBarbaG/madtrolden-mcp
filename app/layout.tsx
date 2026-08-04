@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Madtrolden",
-  description: "Privat MCP-server til billig madplanlægning efter danske tilbudsaviser.",
+  title: "nemt og billigt",
+  description: "nemtogbilligt.app — privat madplanlægger: billig mad efter danske tilbudsaviser.",
   robots: { index: false, follow: false },
 };
 

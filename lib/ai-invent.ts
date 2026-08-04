@@ -27,7 +27,12 @@ import {
   type PlanResult,
   type PlanWeekOptions,
 } from "./planner";
-import { findExcludedTag, NON_INGREDIENT_INDICATORS, type ScoredRecipe } from "./scoring";
+import {
+  filterDealMapToStores,
+  findExcludedTag,
+  NON_INGREDIENT_INDICATORS,
+  type ScoredRecipe,
+} from "./scoring";
 import type { Ingredient, Recipe } from "./store";
 import { scoreOneRecipe } from "./tools/scoring";
 
@@ -254,6 +259,8 @@ export interface InventInput {
   locale: Locale;
   preferredStores: Set<string>;
   maxCookMinutes?: number;
+  /** Hard radius filter: only these chains may supply deals (null = off). */
+  allowedStores?: Set<string> | null;
 }
 
 function buildUserPrompt(
@@ -576,7 +583,11 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
   const { opts, locale, pantrySet, preferredStores } = input;
   const startedAt = Date.now();
 
-  const sweepMap = await searchDealsBatch(SWEEP_TERMS, 8, locale.country);
+  const allowedStores = input.allowedStores ?? null;
+  const sweepMap = filterDealMapToStores(
+    await searchDealsBatch(SWEEP_TERMS, 8, locale.country),
+    allowedStores,
+  );
   const catalog = buildDealCatalog(sweepMap);
   if (catalog.length === 0) {
     return { ok: false, error: "ingen tilbud fundet at bygge madplanen af" };
@@ -624,7 +635,10 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
         for (const t of ing.searchTerms) terms.add(t);
       }
     }
-    const targeted = await searchDealsBatch([...terms].slice(0, 150), 8, locale.country);
+    const targeted = filterDealMapToStores(
+      await searchDealsBatch([...terms].slice(0, 150), 8, locale.country),
+      allowedStores,
+    );
     const dealMap = new Map([...sweepMap, ...targeted]);
 
     const scored: ScoredRecipe[] = recipes.map((r) =>

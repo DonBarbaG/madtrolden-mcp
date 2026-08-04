@@ -11,11 +11,23 @@ export default function Home() {
       }}
     >
       <div style={{ maxWidth: "36rem", padding: "2rem", lineHeight: 1.6 }}>
-        <h1 style={{ fontSize: "1.6rem", marginBottom: "0.5rem" }}>madtrolden 🧌</h1>
+        <h1
+          style={{
+            fontSize: "1.6rem",
+            marginBottom: "0.5rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6rem",
+          }}
+        >
+          {/* biome-ignore lint/performance/noImgElement: single static asset, no next/image needed */}
+          <img src="/logo.png" alt="" width={30} height={30} style={{ borderRadius: 8 }} />
+          nemt og billigt
+        </h1>
         <p style={{ opacity: 0.85 }}>
-          en privat mcp-server til familie og venner: planlægger billig mad ud fra ugens danske
-          tilbudsaviser — budgetloft, madplan, indkøbsliste og nærmeste butikker, direkte i din egen
-          claude.
+          privat madplanlægger til familie og venner: billig mad ud fra ugens danske tilbudsaviser —
+          hårdt budgetloft, madplan, indkøbsliste og kun butikker tæt på dig. virker i browseren og
+          i din egen claude.
         </p>
         <p style={{ opacity: 0.6, fontSize: "0.9rem" }}>
           adgang kræver en personlig nøgle. har du fået en, så følg{" "}

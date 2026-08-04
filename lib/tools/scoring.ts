@@ -8,6 +8,7 @@ import {
   computeIngredientCost,
   type DealCandidate,
   expandSearchTerms,
+  filterDealMapToStores,
   findBestDeal,
   findOptimalWeek,
   type ScoredIngredient,
@@ -91,6 +92,8 @@ export async function scoreAllRecipes(
   pantrySet: Set<string>,
   householdSize: number,
   locale?: Locale,
+  /** Hard radius filter: only chains in this set may supply deals (opt-in). */
+  allowedStores?: Set<string> | null,
 ): Promise<ScoreResult> {
   const recipes = await store.getRecipes();
   if (recipes.length === 0) return { scored: [], dealMap: new Map() };
@@ -108,7 +111,10 @@ export async function scoreAllRecipes(
 
   // Batch fetch all deals in parallel
   const countryId = locale?.country ?? "DK";
-  const dealMap = await searchDealsBatch([...allTerms], 8, countryId);
+  const dealMap = filterDealMapToStores(
+    await searchDealsBatch([...allTerms], 8, countryId),
+    allowedStores ?? null,
+  );
 
   // Score each recipe
   const scored: ScoredRecipe[] = recipes.map((recipe) =>

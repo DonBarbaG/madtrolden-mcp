@@ -94,7 +94,10 @@ export async function POST(req: Request): Promise<Response> {
           typeof body.location === "string" && body.location.trim() !== ""
             ? body.location
             : undefined,
-        radiusKm: num(body.radiusKm),
+        // Hard store-radius: clamp to something a human actually drives.
+        radiusKm: num(body.radiusKm)
+          ? Math.min(25, Math.max(1, num(body.radiusKm) as number))
+          : undefined,
         ai: body.ai === true,
         wishes:
           typeof body.wishes === "string" && body.wishes.trim() !== ""

@@ -254,6 +254,31 @@ export interface ScoredRecipe {
   ingredients: ScoredIngredient[];
 }
 
+// --- Store-radius filter (atom) ---
+
+/**
+ * Drop offers from chains outside the user's radius. `allowedStores` holds
+ * chain/brand names with a branch within radius (case-insensitive match on
+ * Offer.store); null means no location filter — map returned unchanged.
+ * This makes the radius a HARD boundary: a deal from a store 2 hours away
+ * must never reach scoring, the AI's deal catalog, or the shopping list.
+ */
+export function filterDealMapToStores(
+  dealMap: Map<string, Offer[]>,
+  allowedStores: Set<string> | null,
+): Map<string, Offer[]> {
+  if (allowedStores === null) return dealMap;
+  const allowed = new Set([...allowedStores].map((s) => s.toLowerCase()));
+  const out = new Map<string, Offer[]>();
+  for (const [term, offers] of dealMap) {
+    out.set(
+      term,
+      offers.filter((o) => allowed.has(o.store.toLowerCase())),
+    );
+  }
+  return out;
+}
+
 // --- Product form indicators ---
 
 export const PROCESSED_INDICATORS = [

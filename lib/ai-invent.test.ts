@@ -337,3 +337,33 @@ describe("stripPlantAnalogs", () => {
     expect(stripPlantAnalogs("letmælk")).toContain("mælk"); // real dairy stays
   });
 });
+
+describe("filterDealMapToStores (hard radius)", () => {
+  it("drops offers from chains outside the radius, keeps the rest, null = off", async () => {
+    const { filterDealMapToStores } = await import("./scoring");
+    const offer = (store: string) =>
+      ({
+        id: store,
+        heading: "Æg",
+        description: null,
+        price: 20,
+        prePrice: null,
+        currency: "DKK",
+        quantity: null,
+        unit: null,
+        pricePerUnit: null,
+        store,
+        storeId: "x",
+        validFrom: "",
+        validUntil: "",
+        imageUrl: null,
+      }) as import("./api").Offer;
+    const map = new Map([["æg", [offer("Bilka"), offer("REMA 1000")]]]);
+
+    const filtered = filterDealMapToStores(map, new Set(["rema 1000"]));
+    expect(filtered.get("æg")?.map((o) => o.store)).toEqual(["REMA 1000"]);
+
+    expect(filterDealMapToStores(map, null)).toBe(map);
+    expect(filterDealMapToStores(map, new Set()).get("æg")).toEqual([]);
+  });
+});

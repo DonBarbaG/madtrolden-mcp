@@ -125,6 +125,7 @@ export default function PlanPage() {
   const [diet, setDiet] = useState<string[]>([]);
   const [mealPrep, setMealPrep] = useState(false);
   const [location, setLocation] = useState("");
+  const [radius, setRadius] = useState("");
   const [useAi, setUseAi] = useState(true);
   const [wishes, setWishes] = useState("");
 
@@ -239,6 +240,7 @@ export default function PlanPage() {
           excludeProteins: diet.length > 0 ? diet : undefined,
           mealPrep,
           location: location.trim() || undefined,
+          radiusKm: Number(radius) > 0 ? Number(radius) : undefined,
           ai: useAi,
           wishes: wishes.trim() || undefined,
         }),
@@ -273,7 +275,13 @@ export default function PlanPage() {
   if (!account) {
     return (
       <main className="plan-wrap" style={{ maxWidth: 420 }}>
-        <h1 style={{ fontWeight: 500, fontSize: 22 }}>madtrolden 🧌</h1>
+        <h1
+          style={{ fontWeight: 500, fontSize: 22, display: "flex", alignItems: "center", gap: 10 }}
+        >
+          {/* biome-ignore lint/performance/noImgElement: single static asset, no next/image needed */}
+          <img src="/logo.png" alt="" width={26} height={26} style={{ borderRadius: 7 }} />
+          nemt og billigt
+        </h1>
         <p className="meta">privat planlægger — kun med kodeord</p>
         <hr className="rule" />
         <form onSubmit={handleLogin} className="field">
@@ -307,7 +315,20 @@ export default function PlanPage() {
         style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}
       >
         <div>
-          <h1 style={{ fontWeight: 500, fontSize: 22, marginBottom: 2 }}>madtrolden 🧌</h1>
+          <h1
+            style={{
+              fontWeight: 500,
+              fontSize: 22,
+              marginBottom: 2,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            {/* biome-ignore lint/performance/noImgElement: single static asset, no next/image needed */}
+            <img src="/logo.png" alt="" width={26} height={26} style={{ borderRadius: 7 }} />
+            nemt og billigt
+          </h1>
           <p className="meta">logget ind som {account}</p>
         </div>
         <button type="button" className="btn-ghost btn" onClick={logout}>
@@ -604,15 +625,28 @@ export default function PlanPage() {
           </div>
         </div>
 
-        <div style={{ marginTop: 16 }} className="field">
-          <label htmlFor="loc">adresse (valgfrit — viser nærmeste butikker)</label>
-          <input
-            id="loc"
-            className="input"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="fx istedgade 50, københavn"
-          />
+        <div style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div className="field" style={{ flex: "1 1 260px" }}>
+            <label htmlFor="loc">adresse (valgfrit — kun butikker inden for radius bruges)</label>
+            <input
+              id="loc"
+              className="input"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="fx istedgade 50, københavn"
+            />
+          </div>
+          <div className="field" style={{ width: 150 }}>
+            <label htmlFor="radius">maks km til butik</label>
+            <input
+              id="radius"
+              className="input"
+              inputMode="numeric"
+              value={radius}
+              onChange={(e) => setRadius(e.target.value)}
+              placeholder="3"
+            />
+          </div>
         </div>
 
         <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
