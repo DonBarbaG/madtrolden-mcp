@@ -90,6 +90,11 @@ export async function POST(req: Request): Promise<Response> {
             ? body.location
             : undefined,
         radiusKm: num(body.radiusKm),
+        ai: body.ai === true,
+        wishes:
+          typeof body.wishes === "string" && body.wishes.trim() !== ""
+            ? body.wishes.slice(0, 2000)
+            : undefined,
       }),
     );
 
@@ -113,6 +118,7 @@ export async function POST(req: Request): Promise<Response> {
       result: outcome.result,
       nearestByChain: nearest,
       resolvedLocation: outcome.nearby?.origin.label ?? null,
+      ai: outcome.ai,
     });
   } catch (err) {
     console.error("[plan-api] failed:", err);

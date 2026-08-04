@@ -227,6 +227,19 @@ export function registerPlannerTools(server: McpServer): void {
       maxPerProtein: z.number().int().positive().optional().default(2),
       maxPerCuisine: z.number().int().positive().optional().default(2),
       maxSlowDays: z.number().int().min(0).optional().default(2),
+      ai: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe(
+          "Let the server-side AI (GPT) compose the week with real judgment and audit deal matches; all totals are re-verified deterministically. Falls back to the deterministic planner with a note on any failure.",
+        ),
+      wishes: z
+        .string()
+        .optional()
+        .describe(
+          'Free-text wishes for the AI planner, e.g. "mere fisk, ingen supper, nem hverdagsmad"',
+        ),
     },
     async ({
       budget,
@@ -243,9 +256,13 @@ export function registerPlannerTools(server: McpServer): void {
       maxPerProtein,
       maxPerCuisine,
       maxSlowDays,
+      ai,
+      wishes,
     }) => {
       try {
         const outcome = await runPlanWeek({
+          ai,
+          wishes,
           budget,
           people,
           days,
@@ -274,8 +291,21 @@ export function registerPlannerTools(server: McpServer): void {
           location && !outcome.nearby
             ? `\n\n⚠️ Kunne ikke finde "${location}" — planen er lavet uden lokations-boost.`
             : "";
+        let aiSection = "";
+        if (outcome.ai?.used) {
+          const parts = [`\n\n## AI-planlægning (${outcome.ai.model ?? "gpt"})`];
+          if (outcome.ai.reasoning) parts.push(outcome.ai.reasoning);
+          if (outcome.ai.tips?.length) parts.push(`Tips: ${outcome.ai.tips.join(" · ")}`);
+          if (outcome.ai.rejectedDeals?.length) {
+            parts.push(
+              `Afviste tilbudsmatch: ${outcome.ai.rejectedDeals.map((r) => `${r.ingredient} i ${r.recipe} (${r.reason})`).join("; ")}`,
+            );
+          }
+          parts.push("Alle beløb er efterregnet deterministisk — AI'en vælger, koden reviderer.");
+          aiSection = parts.join("\n");
+        }
         return {
-          content: [{ type: "text" as const, text: text + locationNote }],
+          content: [{ type: "text" as const, text: text + aiSection + locationNote }],
         };
       } catch (err) {
         return errorResult(`Failed to plan week: ${err instanceof Error ? err.message : err}`);

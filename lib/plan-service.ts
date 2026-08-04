@@ -2,6 +2,8 @@
 // and the private web UI's JSON endpoint (app/api/plan/route.ts), so the two
 // surfaces can never drift apart.
 
+import { aiAvailable } from "./ai";
+import { type AiPlanExtras, aiPlanWeek } from "./ai-planner";
 import { getLocale } from "./locales";
 import { findStoresNear, type NearbyStores } from "./location";
 import {
@@ -9,6 +11,7 @@ import {
   enrichRecipes,
   type MealType,
   type PlanResult,
+  type PlanWeekOptions,
   planWeek,
 } from "./planner";
 import * as store from "./store";
@@ -29,10 +32,20 @@ export interface PlanRequest {
   maxPerProtein?: number;
   maxPerCuisine?: number;
   maxSlowDays?: number;
+  /** AI mode: GPT composes the week + audits deal matches; code re-verifies totals. */
+  ai?: boolean;
+  /** Free-text wishes passed to the AI planner ("mere fisk, ingen supper"). */
+  wishes?: string;
 }
 
 export type PlanServiceOutcome =
-  | { ok: true; result: PlanResult; nearby: NearbyStores | null; currency: string }
+  | {
+      ok: true;
+      result: PlanResult;
+      nearby: NearbyStores | null;
+      currency: string;
+      ai: AiPlanExtras | null;
+    }
   | { ok: false; error: string };
 
 /** Expand the "vegetarian" shorthand into concrete exclusion tags. */
@@ -88,7 +101,7 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     });
   }
 
-  const result = planWeek(pool, {
+  const opts: PlanWeekOptions = {
     budget: req.budget,
     people: householdSize,
     days,
@@ -103,7 +116,36 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
       excludeProteins: expandExclusions(req.excludeProteins),
       ingredientTags: locale.ingredientTags,
     },
-  });
+  };
+
+  // AI mode: GPT proposes, the deterministic engine re-verifies every number.
+  // Any failure (no key, no credit, bad output) falls back with an honest note.
+  let aiExtras: AiPlanExtras | null = null;
+  if (req.ai) {
+    if (!aiAvailable()) {
+      aiExtras = { used: false, error: "OPENAI_API_KEY er ikke sat på serveren" };
+    } else {
+      const aiOutcome = await aiPlanWeek({
+        pool,
+        opts,
+        wishes: req.wishes,
+        recipes,
+        pantrySet,
+      });
+      if (aiOutcome.ok) {
+        return {
+          ok: true,
+          result: aiOutcome.result,
+          nearby,
+          currency: locale.currency,
+          ai: aiOutcome.extras,
+        };
+      }
+      aiExtras = { used: false, error: aiOutcome.error };
+    }
+  }
+
+  const result = planWeek(pool, opts);
 
   if (result === null) {
     return {
@@ -112,5 +154,11 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     };
   }
 
-  return { ok: true, result, nearby, currency: locale.currency };
+  if (aiExtras?.error) {
+    result.notes.push(
+      `ai-laget kunne ikke bruges (${aiExtras.error}) — deterministisk plan i stedet`,
+    );
+  }
+
+  return { ok: true, result, nearby, currency: locale.currency, ai: aiExtras };
 }

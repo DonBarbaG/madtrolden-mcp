@@ -59,6 +59,14 @@ interface PlanJson {
       covers: number[];
     }>;
   };
+  ai: {
+    used: boolean;
+    model?: string;
+    reasoning?: string;
+    tips?: string[];
+    rejectedDeals?: Array<{ recipe: string; ingredient: string; reason: string }>;
+    error?: string;
+  } | null;
   shoppingByStore?: never;
 }
 
@@ -91,6 +99,8 @@ export default function PlanPage() {
   const [diet, setDiet] = useState<string[]>([]);
   const [mealPrep, setMealPrep] = useState(false);
   const [location, setLocation] = useState("");
+  const [useAi, setUseAi] = useState(true);
+  const [wishes, setWishes] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [planError, setPlanError] = useState("");
@@ -171,6 +181,8 @@ export default function PlanPage() {
           excludeProteins: diet.length > 0 ? diet : undefined,
           mealPrep,
           location: location.trim() || undefined,
+          ai: useAi && !mealPrep,
+          wishes: wishes.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -296,6 +308,16 @@ export default function PlanPage() {
             >
               meal prep (2 madlavningsdage)
             </button>
+            <button
+              type="button"
+              className="chip"
+              data-on={useAi && !mealPrep}
+              disabled={mealPrep}
+              title={mealPrep ? "ai-tilstand understøtter ikke meal prep endnu" : undefined}
+              onClick={() => setUseAi((v) => !v)}
+            >
+              tænk med ai (gpt)
+            </button>
           </div>
         </div>
 
@@ -340,9 +362,26 @@ export default function PlanPage() {
           </div>
         </div>
 
+        {useAi && !mealPrep && (
+          <div style={{ marginTop: 16 }} className="field">
+            <label htmlFor="wishes">ønsker til ai&apos;en (fritekst, valgfrit)</label>
+            <input
+              id="wishes"
+              className="input"
+              value={wishes}
+              onChange={(e) => setWishes(e.target.value)}
+              placeholder="fx mere fisk, ingen supper, nem hverdagsmad man-tors"
+            />
+          </div>
+        )}
+
         <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
           <button type="submit" className="btn" disabled={loading}>
-            {loading ? "planlægger… (op til ½ minut)" : "planlæg ugen"}
+            {loading
+              ? useAi && !mealPrep
+                ? "tænker… (op til et par minutter)"
+                : "planlægger… (op til ½ minut)"
+              : "planlæg ugen"}
           </button>
           {plan && (
             <button type="button" className="btn btn-ghost" onClick={() => window.print()}>
@@ -380,6 +419,34 @@ export default function PlanPage() {
                 : `over budget med ~${Math.ceil(r.budgetGap)} ${plan.currency} — billigste gyldige plan`}
             </p>
           </div>
+
+          {plan.ai?.used && (
+            <div className="card pop pop-2" style={{ marginTop: 14 }}>
+              <p className="meta">ai&apos;ens tanker ({plan.ai.model ?? "gpt"})</p>
+              {plan.ai.reasoning && <p style={{ margin: "6px 0 0" }}>{plan.ai.reasoning}</p>}
+              {plan.ai.tips && plan.ai.tips.length > 0 && (
+                <p className="meta" style={{ marginTop: 8 }}>
+                  tips: {plan.ai.tips.join(" · ")}
+                </p>
+              )}
+              {plan.ai.rejectedDeals && plan.ai.rejectedDeals.length > 0 && (
+                <p className="meta" style={{ marginTop: 4 }}>
+                  afviste tilbudsmatch:{" "}
+                  {plan.ai.rejectedDeals
+                    .map((rd) => `${rd.ingredient} i ${rd.recipe} (${rd.reason})`)
+                    .join("; ")}
+                </p>
+              )}
+              <p className="meta" style={{ marginTop: 4 }}>
+                alle beløb er efterregnet deterministisk — ai&apos;en vælger, koden reviderer
+              </p>
+            </div>
+          )}
+          {plan.ai && !plan.ai.used && plan.ai.error && (
+            <p className="err" style={{ marginTop: 10 }}>
+              ai-laget kunne ikke bruges: {plan.ai.error} — deterministisk plan vist i stedet
+            </p>
+          )}
 
           {r.kcal.target !== null && (
             <p className="meta" style={{ marginTop: 12 }}>

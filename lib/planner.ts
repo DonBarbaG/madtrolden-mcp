@@ -298,9 +298,9 @@ function localSearch(
   return slots;
 }
 
-// --- Result assembly (shared by normal and meal-prep modes) ---
+// --- Result assembly (shared by normal, meal-prep, and AI modes) ---
 
-function assembleResult(
+export function assembleResult(
   days: PlanDay[],
   opts: PlanWeekOptions,
   notes: string[],
