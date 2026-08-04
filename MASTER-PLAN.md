@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 33 / 34 done — ~97%** (task-count, each item = 1; last updated 2026-08-03)
+**Progress: 37 / 38 done — ~97%** (task-count, each item = 1; last updated 2026-08-03)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -64,6 +64,13 @@ Session 1 (2026-08-03) shipped items 1–33 in ~1.5 h wall — far under the 17�
 - [x] 32. CI [me] ⏾ — GitHub Actions: lint, typecheck, tests.
 - [x] 33. Security pass §9 [me] ⏾ — full checklist incl. git-history secret scan, npm audit, 429 test, outbound-host audit.
 - [ ] 34. Keys + family rollout [you] — generate per-person keys into Vercel env, hand out, tag v1.0.0 after Ludwig's own end-to-end run.
+
+## PHASE 7 — privat web-UI (plottet ind 2026-08-04, Ludwigs ønske: "website med kodeord, kun mig, UI, download som PDF")
+
+- [x] 35. Delt plan-service [me] ⏾ — lib/plan-service.ts, MCP-tool og UI kører samme pipeline.
+- [x] 36. /api/plan JSON-endpoint [me] ⏾ — GET login-tjek + POST plan; samme nøgle-auth, rate limits og account-kontekst som MCP.
+- [x] 37. /plan side [me] ⏾ — fog-styled, dansk, lys+mørk; kodeord (localStorage), form (budget/personer/dage/måltider/kost/kcal/meal prep/adresse), resultat med ugeplan, madlavningsdage, indkøbsliste m. nærmeste filialer, totaler.
+- [x] 38. PDF-download [me] ⏾ — "hent som pdf" via print-stylesheet (formularen skjules, planen printes rent).
 
 ## INBOX — unsorted brain-dumps
 
