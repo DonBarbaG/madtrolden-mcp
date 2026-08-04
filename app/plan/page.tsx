@@ -5,6 +5,7 @@
 // localStorage on Ludwig's own machine and is sent as a Bearer header.
 
 import { useCallback, useEffect, useState } from "react";
+import { type Activity, estimateDailyNeeds, type Goal, type Sex } from "@/lib/nutrition-goals";
 
 type MealType = "breakfast" | "lunch" | "dinner";
 
@@ -54,6 +55,11 @@ interface PlanJson {
         factor: number;
         avgKcalPerDay: number | null;
       }>;
+    };
+    protein?: {
+      target: number | null;
+      effectiveTarget: number | null;
+      avgPerDay: number | null;
     };
     notes: string[];
     relaxSuggestions: string[];
@@ -106,6 +112,16 @@ export default function PlanPage() {
   const [days, setDays] = useState("7");
   const [meals, setMeals] = useState<MealType[]>(["dinner"]);
   const [kcalPerPerson, setKcalPerPerson] = useState<string[]>(["", ""]);
+  const [protein, setProtein] = useState("");
+  // Quick daily-needs calculator — everything computes locally in the
+  // browser; only the resulting kcal/protein targets ever hit the server.
+  const [needCalc, setNeedCalc] = useState(false);
+  const [calcWeight, setCalcWeight] = useState("");
+  const [calcHeight, setCalcHeight] = useState("");
+  const [calcAge, setCalcAge] = useState("");
+  const [calcSex, setCalcSex] = useState<Sex>("female");
+  const [calcActivity, setCalcActivity] = useState<Activity>("light");
+  const [calcGoal, setCalcGoal] = useState<Goal>("maintain");
   const [diet, setDiet] = useState<string[]>([]);
   const [mealPrep, setMealPrep] = useState(false);
   const [location, setLocation] = useState("");
@@ -166,6 +182,26 @@ export default function PlanPage() {
     setDiet((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   }
 
+  const calcResult = estimateDailyNeeds({
+    weightKg: Number(calcWeight),
+    heightCm: Number(calcHeight),
+    age: Number(calcAge),
+    sex: calcSex,
+    activity: calcActivity,
+    goal: calcGoal,
+  });
+
+  function applyCalcResult() {
+    if (!calcResult) return;
+    // Fill the first empty kcal field (or person 1 if all are set) + protein.
+    setKcalPerPerson((prev) => {
+      const target = prev.findIndex((v) => v.trim() === "");
+      const i = target === -1 ? 0 : target;
+      return prev.map((v, j) => (j === i ? String(calcResult.kcal) : v));
+    });
+    setProtein(String(calcResult.proteinG));
+  }
+
   // One kcal field per person; the list follows the "personer" count.
   const peopleCount = Math.max(1, Math.min(8, Number(people) || 1));
   useEffect(() => {
@@ -199,6 +235,7 @@ export default function PlanPage() {
           kcalPerPerson: kcalPerPerson.some((k) => k.trim() !== "")
             ? kcalPerPerson.map((k) => Number(k) || 0).filter((n) => n > 0)
             : undefined,
+          proteinPerPersonPerDay: Number(protein) > 0 ? Number(protein) : undefined,
           excludeProteins: diet.length > 0 ? diet : undefined,
           mealPrep,
           location: location.trim() || undefined,
@@ -399,7 +436,144 @@ export default function PlanPage() {
 
         <div style={{ marginTop: 16 }} className="field">
           <span className="field-label">
-            kcal pr. dag, pr. person (valgfrit — fælles retter, portioner skaleres)
+            næring (valgfrit) — kender du dine mål, eller skal vi lige regne dem?
+          </span>
+          <div className="chip-row">
+            <button
+              type="button"
+              className="chip"
+              data-on={!needCalc}
+              onClick={() => setNeedCalc(false)}
+            >
+              jeg kender mine mål
+            </button>
+            <button
+              type="button"
+              className="chip"
+              data-on={needCalc}
+              onClick={() => setNeedCalc(true)}
+            >
+              hurtig beregner
+            </button>
+          </div>
+          {needCalc && (
+            <div className="card" style={{ marginTop: 10 }}>
+              <div className="chip-row">
+                <input
+                  className="input"
+                  style={{ width: 110 }}
+                  inputMode="numeric"
+                  value={calcWeight}
+                  onChange={(e) => setCalcWeight(e.target.value)}
+                  placeholder="vægt kg"
+                  aria-label="vægt i kg"
+                />
+                <input
+                  className="input"
+                  style={{ width: 110 }}
+                  inputMode="numeric"
+                  value={calcHeight}
+                  onChange={(e) => setCalcHeight(e.target.value)}
+                  placeholder="højde cm"
+                  aria-label="højde i cm"
+                />
+                <input
+                  className="input"
+                  style={{ width: 90 }}
+                  inputMode="numeric"
+                  value={calcAge}
+                  onChange={(e) => setCalcAge(e.target.value)}
+                  placeholder="alder"
+                  aria-label="alder"
+                />
+              </div>
+              <div className="chip-row" style={{ marginTop: 8 }}>
+                {(
+                  [
+                    ["female", "kvinde"],
+                    ["male", "mand"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className="chip"
+                    data-on={calcSex === value}
+                    onClick={() => setCalcSex(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="chip-row" style={{ marginTop: 8 }}>
+                {(
+                  [
+                    ["sedentary", "stillesiddende"],
+                    ["light", "let aktiv"],
+                    ["moderate", "moderat"],
+                    ["active", "meget aktiv"],
+                    ["athlete", "atlet"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className="chip"
+                    data-on={calcActivity === value}
+                    onClick={() => setCalcActivity(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="chip-row" style={{ marginTop: 8 }}>
+                {(
+                  [
+                    ["lose", "tabe mig"],
+                    ["maintain", "holde vægt"],
+                    ["gain", "tage på"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className="chip"
+                    data-on={calcGoal === value}
+                    onClick={() => setCalcGoal(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {calcResult ? (
+                <p style={{ margin: "10px 0 0" }}>
+                  ≈ {calcResult.kcal} kcal/dag · {calcResult.proteinG} g protein/dag{" "}
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ marginLeft: 8 }}
+                    onClick={applyCalcResult}
+                  >
+                    brug tallene
+                  </button>
+                </p>
+              ) : (
+                <p className="meta" style={{ margin: "10px 0 0" }}>
+                  udfyld vægt, højde og alder — vi regner lokalt i din browser, kun målene sendes
+                  med planen
+                </p>
+              )}
+              <p className="meta" style={{ margin: "6px 0 0" }}>
+                tommelfingerregning for raske voksne (Mifflin-St Jeor) — ikke lægefaglig rådgivning;
+                ret tallene som du vil
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 16 }} className="field">
+          <span className="field-label">
+            kcal pr. dag, pr. person (valgfrit — fælles retter, portioner skaleres) + protein
           </span>
           <div className="chip-row">
             {kcalPerPerson.map((value, i) => (
@@ -418,6 +592,15 @@ export default function PlanPage() {
                 aria-label={`kcal person ${i + 1}`}
               />
             ))}
+            <input
+              className="input"
+              style={{ width: 170 }}
+              inputMode="numeric"
+              value={protein}
+              onChange={(e) => setProtein(e.target.value)}
+              placeholder="protein g/dag (fælles)"
+              aria-label="protein gram pr. dag"
+            />
           </div>
         </div>
 
@@ -512,6 +695,12 @@ export default function PlanPage() {
               {r.kcal.withinTolerance ? "inden for ±10%" : "uden for ±10%"}
               {r.kcal.unscoredIngredients.length > 0 &&
                 ` · ikke talt med: ${r.kcal.unscoredIngredients.slice(0, 6).join(", ")}${r.kcal.unscoredIngredients.length > 6 ? "…" : ""}`}
+            </p>
+          )}
+          {r.protein && r.protein.target !== null && (
+            <p className="meta" style={{ marginTop: 4 }}>
+              protein: mål {r.protein.target} g/dag → {r.protein.effectiveTarget} g for valgte
+              måltider · planen giver ~{r.protein.avgPerDay ?? "?"} g/dag
             </p>
           )}
           {r.kcal.portioning && r.kcal.portioning.length > 0 && (

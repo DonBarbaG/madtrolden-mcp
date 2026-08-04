@@ -26,6 +26,9 @@ export interface PlanRequest {
   /** Individual kcal targets, one per person — overrides kcalPerPersonPerDay
    * (engine targets the mean; result reports per-person portion factors). */
   kcalPerPerson?: number[];
+  /** Daily protein target (g/person) — reported against the plan, and the
+   * AI planner composes toward it. */
+  proteinPerPersonPerDay?: number;
   excludeProteins?: string[];
   maxCookMinutes?: number;
   mealPrep?: boolean;
@@ -103,6 +106,7 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     meals,
     kcalPerPersonPerDay: kcalMean,
     kcalPerPerson: kcalList && kcalList.length > 0 ? kcalList : undefined,
+    proteinPerPersonPerDay: req.proteinPerPersonPerDay,
     mealPrep: req.mealPrep,
     cookDays: req.cookDays,
     constraints: {

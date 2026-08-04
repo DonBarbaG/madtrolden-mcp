@@ -78,6 +78,7 @@ export async function POST(req: Request): Promise<Response> {
         days: num(body.days) ? Math.min(14, Math.round(num(body.days) as number)) : undefined,
         meals,
         kcalPerPersonPerDay: num(body.kcalPerPersonPerDay),
+        proteinPerPersonPerDay: num(body.proteinPerPersonPerDay),
         kcalPerPerson: Array.isArray(body.kcalPerPerson)
           ? (body.kcalPerPerson.map(Number).filter((n) => Number.isFinite(n) && n > 0) as number[])
           : undefined,

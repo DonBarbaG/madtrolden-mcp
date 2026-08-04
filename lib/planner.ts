@@ -49,6 +49,9 @@ export interface PlanWeekOptions {
   /** Individual kcal targets (one per person). Engine targets the mean; the
    * result reports per-person portion factors so servings can be split. */
   kcalPerPerson?: number[];
+  /** Daily protein target (g/person). Reported against the plan; the AI
+   * planner also composes toward it. */
+  proteinPerPersonPerDay?: number;
   constraints: VarietyConstraints;
   /** Meal-prep mode: consolidate cooking onto cookDays, schedule leftovers. */
   mealPrep?: boolean;
@@ -113,6 +116,13 @@ export interface PlanResult {
     unscoredIngredients: string[];
     /** Present when individual kcal targets were given. */
     portioning?: PersonPortioning[];
+  };
+  /** Daily protein per person from the planned meals, vs. the target
+   * (effectiveTarget = target scaled by the planned meals' kcal share). */
+  protein: {
+    target: number | null;
+    effectiveTarget: number | null;
+    avgPerDay: number | null;
   };
   relaxSuggestions: string[];
   /** Honest caveats: auto-relaxed variety caps, repeated recipes, etc. */
@@ -385,6 +395,14 @@ export function assembleResult(
     recipe: m.recipe,
   }));
   const avgKcal = kcalOfSlots(slotList, opts.days);
+  const proteinScored = slotList.filter((s) => s.recipe.nutrition.perServing !== null);
+  const avgProtein =
+    proteinScored.length > 0
+      ? Math.round(
+          proteinScored.reduce((sum, s) => sum + (s.recipe.nutrition.perServing?.protein ?? 0), 0) /
+            opts.days,
+        )
+      : null;
   const withinTolerance =
     effectiveDailyTarget !== null && avgKcal !== null
       ? Math.abs(avgKcal - effectiveDailyTarget) <= effectiveDailyTarget * 0.1
@@ -438,6 +456,13 @@ export function assembleResult(
       withinTolerance,
       unscoredIngredients: unscored,
       portioning,
+    },
+    protein: {
+      target: opts.proteinPerPersonPerDay ?? null,
+      effectiveTarget: opts.proteinPerPersonPerDay
+        ? Math.round(opts.proteinPerPersonPerDay * mealShare)
+        : null,
+      avgPerDay: avgProtein,
     },
     relaxSuggestions,
     notes,

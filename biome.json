@@ -34,10 +34,6 @@
     "lineWidth": 100
   },
   "files": {
-    "includes": [
-      "lib/**",
-      "app/**",
-      "scripts/**"
-    ]
+    "includes": ["lib/**", "app/**", "scripts/**"]
   }
 }

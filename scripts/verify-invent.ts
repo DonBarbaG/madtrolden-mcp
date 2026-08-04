@@ -9,6 +9,7 @@ async function main() {
     days: 7,
     meals: ["breakfast", "lunch", "dinner"],
     kcalPerPersonPerDay: 1850,
+    proteinPerPersonPerDay: 90,
     excludeProteins: ["vegetarian", "gluten", "dairy"],
     ai: true,
     wishes:
@@ -31,6 +32,13 @@ async function main() {
     r.budgetGap,
   );
   console.log("kcal avg/day:", r.kcal.avgPerDay, "target(effective):", r.kcal.effectiveTarget);
+  console.log(
+    "protein avg/day:",
+    r.protein.avgPerDay,
+    "g, target(effective):",
+    r.protein.effectiveTarget,
+    "g",
+  );
   console.log(
     "maybe-bucket:",
     r.maybe?.lines.map((l) => `${l.name}~${l.estimate ?? "?"}`).join(", ") || "(tom)",

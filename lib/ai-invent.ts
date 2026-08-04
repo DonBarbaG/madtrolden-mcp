@@ -271,6 +271,11 @@ function buildUserPrompt(
       `Kaloriemål: ${opts.kcalPerPersonPerDay} kcal/person/dag for HELE dagen — planlagte måltider skal ramme deres andel (morgenmad ~25%, frokost ~35%, aftensmad ~40%), ±10%. Billig mad må ikke betyde for lidt mad.`,
     );
   }
+  if (opts.proteinPerPersonPerDay) {
+    parts.push(
+      `Proteinmål: ~${opts.proteinPerPersonPerDay} g protein/person/dag for HELE dagen — vælg billige proteinkilder (æg, bælgfrugter, skyr, kylling på tilbud) så de planlagte måltider bærer deres andel.`,
+    );
+  }
   if (opts.constraints.excludeProteins?.length) {
     parts.push(`Udelukkelser (ABSOLUTTE): ${opts.constraints.excludeProteins.join(", ")}.`);
   }
