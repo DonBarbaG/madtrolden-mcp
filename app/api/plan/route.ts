@@ -61,6 +61,53 @@ export async function POST(req: Request): Promise<Response> {
   if (!Number.isFinite(budget) || budget <= 0) {
     return Response.json({ error: "budget (positive number, DKK) is required" }, { status: 400 });
   }
+
+  // AI planning holds the connection open for minutes with zero bytes sent;
+  // phone carriers and proxies kill such idle sockets, so the browser saw
+  // "mistede forbindelsen" mid-plan. Stream newline heartbeats while the
+  // planner runs and emit the JSON payload as the last line (ndjson-ish).
+  // Errors after this point ride inside the body as {error} — headers are
+  // already sent, so the status is always 200 once streaming starts.
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const enqueue = (s: string) => {
+        try {
+          controller.enqueue(encoder.encode(s));
+        } catch {
+          // Client went away; the planner finishes on its own.
+        }
+      };
+      enqueue("\n"); // flush headers + first byte immediately
+      const heartbeat = setInterval(() => enqueue("\n"), 10_000);
+      try {
+        const payload = await planPayload(account, body);
+        enqueue(JSON.stringify(payload));
+      } catch (err) {
+        console.error("[plan-api] failed:", err);
+        enqueue(JSON.stringify({ error: "planning failed — try again" }));
+      } finally {
+        clearInterval(heartbeat);
+        try {
+          controller.close();
+        } catch {}
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+async function planPayload(
+  account: string,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const budget = Number(body.budget);
   const meals = Array.isArray(body.meals)
     ? (body.meals.filter((m) => typeof m === "string" && MEAL_TYPES.has(m)) as MealType[])
     : undefined;
@@ -70,66 +117,61 @@ export async function POST(req: Request): Promise<Response> {
     return Number.isFinite(n) && n > 0 ? n : undefined;
   };
 
-  try {
-    const outcome = await runWithAccount(account, () =>
-      runPlanWeek({
-        budget,
-        people: num(body.people),
-        days: num(body.days) ? Math.min(14, Math.round(num(body.days) as number)) : undefined,
-        meals,
-        kcalPerPersonPerDay: num(body.kcalPerPersonPerDay),
-        proteinPerPersonPerDay: num(body.proteinPerPersonPerDay),
-        kcalPerPerson: Array.isArray(body.kcalPerPerson)
-          ? (body.kcalPerPerson.map(Number).filter((n) => Number.isFinite(n) && n > 0) as number[])
+  const outcome = await runWithAccount(account, () =>
+    runPlanWeek({
+      budget,
+      people: num(body.people),
+      days: num(body.days) ? Math.min(14, Math.round(num(body.days) as number)) : undefined,
+      meals,
+      kcalPerPersonPerDay: num(body.kcalPerPersonPerDay),
+      proteinPerPersonPerDay: num(body.proteinPerPersonPerDay),
+      kcalPerPerson: Array.isArray(body.kcalPerPerson)
+        ? (body.kcalPerPerson.map(Number).filter((n) => Number.isFinite(n) && n > 0) as number[])
+        : undefined,
+      excludeProteins: Array.isArray(body.excludeProteins)
+        ? (body.excludeProteins.filter((e) => typeof e === "string") as string[])
+        : undefined,
+      maxCookMinutes: num(body.maxCookMinutes),
+      mealPrep: body.mealPrep === true,
+      cookDays: Array.isArray(body.cookDays)
+        ? (body.cookDays.map(Number).filter((n) => Number.isInteger(n) && n >= 1) as number[])
+        : undefined,
+      location:
+        typeof body.location === "string" && body.location.trim() !== ""
+          ? body.location
           : undefined,
-        excludeProteins: Array.isArray(body.excludeProteins)
-          ? (body.excludeProteins.filter((e) => typeof e === "string") as string[])
+      // Hard store-radius: clamp to something a human actually drives.
+      radiusKm: num(body.radiusKm)
+        ? Math.min(25, Math.max(1, num(body.radiusKm) as number))
+        : undefined,
+      ai: body.ai === true,
+      wishes:
+        typeof body.wishes === "string" && body.wishes.trim() !== ""
+          ? body.wishes.slice(0, 2000)
           : undefined,
-        maxCookMinutes: num(body.maxCookMinutes),
-        mealPrep: body.mealPrep === true,
-        cookDays: Array.isArray(body.cookDays)
-          ? (body.cookDays.map(Number).filter((n) => Number.isInteger(n) && n >= 1) as number[])
-          : undefined,
-        location:
-          typeof body.location === "string" && body.location.trim() !== ""
-            ? body.location
-            : undefined,
-        // Hard store-radius: clamp to something a human actually drives.
-        radiusKm: num(body.radiusKm)
-          ? Math.min(25, Math.max(1, num(body.radiusKm) as number))
-          : undefined,
-        ai: body.ai === true,
-        wishes:
-          typeof body.wishes === "string" && body.wishes.trim() !== ""
-            ? body.wishes.slice(0, 2000)
-            : undefined,
-      }),
-    );
+    }),
+  );
 
-    if (!outcome.ok) {
-      return Response.json({ error: outcome.error }, { status: 422 });
-    }
-
-    // Maps don't serialize — flatten nearest branches for the UI.
-    const nearest = outcome.nearby
-      ? Object.fromEntries(
-          [...outcome.nearby.nearestByChain.entries()].map(([brand, b]) => [
-            brand,
-            { name: b.name, street: b.street, zip: b.zip, city: b.city, distanceKm: b.distanceKm },
-          ]),
-        )
-      : null;
-
-    return Response.json({
-      account,
-      currency: outcome.currency,
-      result: outcome.result,
-      nearestByChain: nearest,
-      resolvedLocation: outcome.nearby?.origin.label ?? null,
-      ai: outcome.ai,
-    });
-  } catch (err) {
-    console.error("[plan-api] failed:", err);
-    return Response.json({ error: "planning failed — try again" }, { status: 500 });
+  if (!outcome.ok) {
+    return { error: outcome.error };
   }
+
+  // Maps don't serialize — flatten nearest branches for the UI.
+  const nearest = outcome.nearby
+    ? Object.fromEntries(
+        [...outcome.nearby.nearestByChain.entries()].map(([brand, b]) => [
+          brand,
+          { name: b.name, street: b.street, zip: b.zip, city: b.city, distanceKm: b.distanceKm },
+        ]),
+      )
+    : null;
+
+  return {
+    account,
+    currency: outcome.currency,
+    result: outcome.result,
+    nearestByChain: nearest,
+    resolvedLocation: outcome.nearby?.origin.label ?? null,
+    ai: outcome.ai,
+  };
 }

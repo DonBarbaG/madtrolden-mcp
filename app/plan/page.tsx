@@ -256,7 +256,24 @@ export default function PlanPage() {
         setPlanError(msg);
         return;
       }
-      setPlan((await res.json()) as PlanJson);
+      // The server streams newline heartbeats while planning (keeps mobile
+      // connections alive) and sends the JSON payload as the last line.
+      const text = await res.text();
+      const lastLine = text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l !== "")
+        .pop();
+      if (!lastLine) {
+        setPlanError("tomt svar fra serveren — prøv igen");
+        return;
+      }
+      const data = JSON.parse(lastLine) as PlanJson & { error?: string };
+      if (data.error) {
+        setPlanError(String(data.error));
+        return;
+      }
+      setPlan(data);
     } catch {
       setPlanError("mistede forbindelsen til serveren undervejs — prøv igen");
     } finally {
