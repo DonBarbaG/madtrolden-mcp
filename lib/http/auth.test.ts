@@ -2,10 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  collectAccessKeys,
   KEY_PATTERN,
   keyFingerprint,
   keyFromCookie,
+  loadAccessKeys,
   parseAccessKeys,
   sessionCookie,
 } from "./auth";
@@ -72,26 +72,30 @@ describe("keyFingerprint", () => {
 
 describe("per-person keys + session cookie", () => {
   it("adds ACCESS_KEY_<NAME> vars to the shared list", () => {
-    const raw = collectAccessKeys({
+    const entries = loadAccessKeys({
       ACCESS_KEYS: `ludwig:${GOOD_KEY}`,
       ACCESS_KEY_MOR: "troll_zyxwvutsrq765432ponmlk7654",
       ACCESS_KEY_: "ignored",
       OTHER: "x",
     });
-    expect(parseAccessKeys(raw).map((e) => e.name)).toEqual(["ludwig", "mor"]);
+    expect(entries.map((e) => e.name)).toEqual(["ludwig", "mor"]);
   });
 
   it("works with only per-person vars, and stays loud with none", () => {
-    expect(collectAccessKeys({ ACCESS_KEY_MOR: GOOD_KEY })).toBe(`mor:${GOOD_KEY}`);
-    expect(() => parseAccessKeys(collectAccessKeys({}))).toThrow(/ACCESS_KEYS is not set/);
+    expect(loadAccessKeys({ ACCESS_KEY_MOR: GOOD_KEY }).map((e) => e.name)).toEqual(["mor"]);
+    expect(() => loadAccessKeys({})).toThrow(/ACCESS_KEYS is not set/);
   });
 
-  it("a duplicate name across both sources is still refused", () => {
-    expect(() =>
-      parseAccessKeys(
-        collectAccessKeys({ ACCESS_KEYS: `mor:${GOOD_KEY}`, ACCESS_KEY_MOR: GOOD_KEY }),
-      ),
-    ).toThrow(/duplicate/);
+  it("a per-person var for an existing account adds a second key, not a crash", () => {
+    const entries = loadAccessKeys({
+      ACCESS_KEYS: `ludwig:${GOOD_KEY}`,
+      ACCESS_KEY_LUDWIG: "troll_zyxwvutsrq765432ponmlk7654",
+    });
+    expect(entries.map((e) => e.name)).toEqual(["ludwig", "ludwig"]);
+  });
+
+  it("a malformed per-person key still fails loudly", () => {
+    expect(() => loadAccessKeys({ ACCESS_KEY_MOR: "troll_short" })).toThrow(/malformed key/);
   });
 
   it("round-trips the key through a long-lived HttpOnly cookie", () => {

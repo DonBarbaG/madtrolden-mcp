@@ -64,22 +64,29 @@ export function parseAccessKeys(raw: string | undefined): AccountEntry[] {
 
 const PER_PERSON_VAR = /^ACCESS_KEY_([A-Za-z0-9_-]{1,32})$/;
 
-/** ACCESS_KEYS + every ACCESS_KEY_<NAME> var, as one `name:key,…` list. */
-export function collectAccessKeys(env: Record<string, string | undefined>): string | undefined {
-  const parts: string[] = [];
-  if (env.ACCESS_KEYS && env.ACCESS_KEYS.trim() !== "") parts.push(env.ACCESS_KEYS.trim());
+/**
+ * ACCESS_KEYS + every ACCESS_KEY_<NAME> var. A per-person var may name an
+ * account that's already in the list — that just gives the account one more
+ * valid key (a fresh key without rewriting the shared secret; the old one
+ * keeps working). Duplicates INSIDE the list are still refused as typos.
+ */
+export function loadAccessKeys(env: Record<string, string | undefined>): AccountEntry[] {
+  const perPerson: string[] = [];
   for (const [name, value] of Object.entries(env).sort(([a], [b]) => a.localeCompare(b))) {
     const m = name.match(PER_PERSON_VAR);
-    if (m && value && value.trim() !== "") parts.push(`${m[1].toLowerCase()}:${value.trim()}`);
+    if (m && value && value.trim() !== "") perPerson.push(`${m[1].toLowerCase()}:${value.trim()}`);
   }
-  return parts.length > 0 ? parts.join(",") : undefined;
+  const shared = env.ACCESS_KEYS?.trim() ? parseAccessKeys(env.ACCESS_KEYS) : [];
+  const extra = perPerson.flatMap((pair) => parseAccessKeys(pair));
+  if (shared.length === 0 && extra.length === 0) return parseAccessKeys(undefined); // loud
+  return [...shared, ...extra];
 }
 
 let cachedEntries: AccountEntry[] | null = null;
 
 function getEntries(): AccountEntry[] {
   if (cachedEntries === null) {
-    cachedEntries = parseAccessKeys(collectAccessKeys(process.env));
+    cachedEntries = loadAccessKeys(process.env);
   }
   return cachedEntries;
 }
