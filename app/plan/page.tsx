@@ -106,11 +106,24 @@ const DIET_OPTIONS = [
   { key: "dairy", label: "uden mejeriprodukter" },
 ];
 
+/** Keep the login in three places so no single purge logs anyone out:
+ * localStorage, the server's HttpOnly cookie (set by the login check), and
+ * the page's own #k= fragment — which "Føj til hjemmeskærm" saves into the
+ * icon, so the home-screen app (separate storage on iOS) starts logged in. */
+function rememberKey(key: string): void {
+  window.localStorage.setItem("madtrolden-key", key);
+  const want = `#k=${encodeURIComponent(key)}`;
+  if (window.location.hash !== want) {
+    window.history.replaceState(null, "", `${window.location.pathname}${want}`);
+  }
+}
+
 export default function PlanPage() {
   const [key, setKey] = useState("");
   const [account, setAccount] = useState<string | null>(null);
   const [loginError, setLoginError] = useState("");
   const [checking, setChecking] = useState(true);
+  const [offline, setOffline] = useState(false);
 
   const [budget, setBudget] = useState("500");
   const [people, setPeople] = useState("2");
@@ -139,42 +152,64 @@ export default function PlanPage() {
   const [planError, setPlanError] = useState("");
   const [plan, setPlan] = useState<PlanJson | null>(null);
 
-  const tryLogin = useCallback(async (candidate: string): Promise<boolean> => {
-    const res = await fetch("/api/plan", {
-      headers: { authorization: `Bearer ${candidate}` },
-    });
-    if (!res.ok) return false;
-    const data = (await res.json()) as { account: string };
-    setAccount(data.account);
-    return true;
-  }, []);
+  // Login check. With no candidate the browser's stay-logged-in cookie
+  // (HttpOnly, set by the server) does the talking.
+  const tryLogin = useCallback(
+    async (candidate: string | null): Promise<"ok" | "bad" | "offline"> => {
+      let res: Response;
+      try {
+        res = await fetch("/api/plan", {
+          headers: candidate ? { authorization: `Bearer ${candidate}` } : {},
+        });
+      } catch {
+        return "offline";
+      }
+      if (res.status === 401) return "bad";
+      if (!res.ok) return "offline";
+      const data = (await res.json()) as { account: string };
+      setAccount(data.account);
+      return "ok";
+    },
+    [],
+  );
+
+  // Never logs out on its own: a login link (#k=…), the saved key, or the
+  // cookie — whichever is there. A failed network check keeps everything and
+  // offers a retry instead of throwing the person back to the login screen.
+  const autoLogin = useCallback(async () => {
+    setChecking(true);
+    setOffline(false);
+    const fromLink = new URLSearchParams(window.location.hash.slice(1)).get("k");
+    const saved = fromLink ?? window.localStorage.getItem("madtrolden-key");
+    if (saved) setKey(saved);
+    const outcome = await tryLogin(saved);
+    if (outcome === "ok" && saved) rememberKey(saved);
+    if (outcome === "bad" && saved) {
+      // A stale saved key — the cookie may still hold a good one.
+      if ((await tryLogin(null)) === "ok") {
+        window.localStorage.removeItem("madtrolden-key");
+        setKey("");
+      }
+    }
+    if (outcome === "offline") setOffline(true);
+    setChecking(false);
+  }, [tryLogin]);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("madtrolden-key");
-    if (!saved) {
-      setChecking(false);
-      return;
-    }
-    setKey(saved);
-    tryLogin(saved).finally(() => setChecking(false));
-  }, [tryLogin]);
+    autoLogin();
+  }, [autoLogin]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginError("");
-    const ok = await tryLogin(key.trim());
-    if (ok) {
-      window.localStorage.setItem("madtrolden-key", key.trim());
+    const outcome = await tryLogin(key.trim());
+    if (outcome === "ok") {
+      rememberKey(key.trim());
     } else {
-      setLoginError("forkert kodeord — prøv igen");
+      setLoginError(
+        outcome === "bad" ? "forkert kodeord — prøv igen" : "ingen forbindelse — prøv igen",
+      );
     }
-  }
-
-  function logout() {
-    window.localStorage.removeItem("madtrolden-key");
-    setAccount(null);
-    setKey("");
-    setPlan(null);
   }
 
   function toggleMeal(m: MealType) {
@@ -231,7 +266,7 @@ export default function PlanPage() {
       const res = await fetch("/api/plan", {
         method: "POST",
         headers: {
-          authorization: `Bearer ${key.trim()}`,
+          ...(key.trim() ? { authorization: `Bearer ${key.trim()}` } : {}),
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -296,6 +331,17 @@ export default function PlanPage() {
     );
   }
 
+  if (!account && offline) {
+    return (
+      <main className="plan-wrap" style={{ maxWidth: 420 }}>
+        <p className="meta">ingen forbindelse til serveren lige nu.</p>
+        <button type="button" className="btn" onClick={autoLogin}>
+          prøv igen
+        </button>
+      </main>
+    );
+  }
+
   if (!account) {
     return (
       <main className="plan-wrap" style={{ maxWidth: 420 }}>
@@ -334,10 +380,7 @@ export default function PlanPage() {
 
   return (
     <main className="plan-wrap">
-      <header
-        className="no-print"
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}
-      >
+      <header className="no-print">
         <div>
           <h1
             style={{
@@ -355,9 +398,6 @@ export default function PlanPage() {
           </h1>
           <p className="meta">logget ind som {account}</p>
         </div>
-        <button type="button" className="btn-ghost btn" onClick={logout}>
-          log ud
-        </button>
       </header>
 
       <form onSubmit={handlePlan} className="no-print">

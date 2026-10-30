@@ -1,7 +1,14 @@
 /** Security-pass tests (§9): ACCESS_KEYS parsing and key verification. */
 
 import { describe, expect, it } from "vitest";
-import { KEY_PATTERN, keyFingerprint, parseAccessKeys } from "./auth";
+import {
+  collectAccessKeys,
+  KEY_PATTERN,
+  keyFingerprint,
+  keyFromCookie,
+  parseAccessKeys,
+  sessionCookie,
+} from "./auth";
 
 const GOOD_KEY = "troll_abcdefghij234567klmnop2345";
 
@@ -60,5 +67,41 @@ describe("keyFingerprint", () => {
     expect(fp).toHaveLength(8);
     expect(fp).toBe(keyFingerprint(GOOD_KEY));
     expect(GOOD_KEY).not.toContain(fp);
+  });
+});
+
+describe("per-person keys + session cookie", () => {
+  it("adds ACCESS_KEY_<NAME> vars to the shared list", () => {
+    const raw = collectAccessKeys({
+      ACCESS_KEYS: `ludwig:${GOOD_KEY}`,
+      ACCESS_KEY_MOR: "troll_zyxwvutsrq765432ponmlk7654",
+      ACCESS_KEY_: "ignored",
+      OTHER: "x",
+    });
+    expect(parseAccessKeys(raw).map((e) => e.name)).toEqual(["ludwig", "mor"]);
+  });
+
+  it("works with only per-person vars, and stays loud with none", () => {
+    expect(collectAccessKeys({ ACCESS_KEY_MOR: GOOD_KEY })).toBe(`mor:${GOOD_KEY}`);
+    expect(() => parseAccessKeys(collectAccessKeys({}))).toThrow(/ACCESS_KEYS is not set/);
+  });
+
+  it("a duplicate name across both sources is still refused", () => {
+    expect(() =>
+      parseAccessKeys(
+        collectAccessKeys({ ACCESS_KEYS: `mor:${GOOD_KEY}`, ACCESS_KEY_MOR: GOOD_KEY }),
+      ),
+    ).toThrow(/duplicate/);
+  });
+
+  it("round-trips the key through a long-lived HttpOnly cookie", () => {
+    const cookie = sessionCookie(GOOD_KEY);
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("Secure");
+    expect(cookie).toContain("SameSite=Strict");
+    expect(cookie).toMatch(/Max-Age=34560000/);
+    expect(keyFromCookie(`a=1; ${cookie.split(";")[0]}; b=2`)).toBe(GOOD_KEY);
+    expect(keyFromCookie("a=1")).toBeNull();
+    expect(keyFromCookie(null)).toBeNull();
   });
 });

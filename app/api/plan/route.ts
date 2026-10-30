@@ -1,7 +1,7 @@
 // JSON endpoint for the private /plan web UI. Same key auth, same rate
 // limits, same planning pipeline as the MCP tool — just structured JSON out.
 
-import { keyFingerprint, verifyKey } from "@/lib/http/auth";
+import { keyFingerprint, keyFromCookie, sessionCookie, verifyKey } from "@/lib/http/auth";
 import { runWithAccount } from "@/lib/http/context";
 import { takeToken } from "@/lib/http/rate-limit";
 import { runPlanWeek } from "@/lib/plan-service";
@@ -18,22 +18,29 @@ function unauthorized(): Response {
   });
 }
 
-function authenticate(req: Request): string | null {
+/** The candidate key: Bearer header first, else the stay-logged-in cookie. */
+function candidateKey(req: Request): string | null {
   const header = req.headers.get("authorization");
-  if (!header?.toLowerCase().startsWith("bearer ")) return null;
-  return verifyKey(header.slice(7).trim());
+  if (header?.toLowerCase().startsWith("bearer ")) return header.slice(7).trim();
+  return keyFromCookie(req.headers.get("cookie"));
 }
 
-/** Login check for the UI: 200 + account name with a valid key, uniform 401 otherwise. */
+function authenticate(req: Request): string | null {
+  const key = candidateKey(req);
+  return key ? verifyKey(key) : null;
+}
+
+/** Login check for the UI: 200 + account name with a valid key, uniform 401
+ * otherwise. Every good check re-sets the long-lived HttpOnly cookie, so a
+ * device that keeps visiting never gets logged out. */
 export async function GET(req: Request): Promise<Response> {
-  const account = authenticate(req);
-  if (account === null) {
-    console.error(
-      `[auth] 401 ui-login key=${keyFingerprint(req.headers.get("authorization") ?? "")}`,
-    );
+  const key = candidateKey(req);
+  const account = key ? verifyKey(key) : null;
+  if (account === null || key === null) {
+    console.error(`[auth] 401 ui-login key=${keyFingerprint(key ?? "")}`);
     return unauthorized();
   }
-  return Response.json({ account });
+  return Response.json({ account }, { headers: { "set-cookie": sessionCookie(key) } });
 }
 
 const MEAL_TYPES = new Set(["breakfast", "lunch", "dinner"]);
