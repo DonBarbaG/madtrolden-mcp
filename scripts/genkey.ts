@@ -35,6 +35,8 @@ const key = `troll_${base32(randomBytes(16))}`;
 
 console.log(`${name}:${key}`);
 console.log("");
-console.log("Append it to the ACCESS_KEYS env var in Vercel (comma-separated), e.g.:");
-console.log("  vercel env rm ACCESS_KEYS production   # then re-add with the new pair included");
+console.log("Give this person their own Vercel env var (paste only the troll_… part):");
+console.log(`  vercel env add ACCESS_KEY_${name.toUpperCase()} production`);
+console.log("(or append name:key to the ACCESS_KEYS list). Redeploy, then send them:");
+console.log("  https://madtrolden-mcp.vercel.app/plan#k=<the troll_… key>");
 console.log("Give the key to exactly one person. It will not be shown again.");
