@@ -17,6 +17,7 @@ import {
   trimToBudget,
 } from "./ai-invent";
 import type { Offer } from "./api";
+import { parseOnHand } from "./on-hand";
 import {
   assembleResult,
   type EnrichedRecipe,
@@ -171,6 +172,48 @@ describe("buildInventedRecipes", () => {
     expect(recipes[0].ingredients.map((i) => i.name)).toEqual(["kylling", "ris"]);
     expect(recipes[0].mealType).toBe("dinner");
     expect(maybeItems.map((m) => m.name)).toEqual(["sojasauce"]);
+  });
+
+  it("marks real fridge items as free, ignores fridge claims for things the user never listed", () => {
+    const normalized = normalizeInventResponse(
+      {
+        days: [
+          {
+            day: 1,
+            meals: [
+              meal("dinner", "spinatomelet", [
+                { name: "æg", quantity: "4 stk", searchTerms: ["æg"], fromFridge: true },
+                { name: "æg ekstra", quantity: "2 stk", searchTerms: ["æg"] },
+                {
+                  name: "frisk spinat",
+                  quantity: "150 g",
+                  searchTerms: ["spinat"],
+                  fromFridge: true,
+                },
+                { name: "smør", quantity: "10 g", category: "condiment", fromFridge: true },
+                { name: "laks", quantity: "200 g", searchTerms: ["laks"], fromFridge: true },
+              ]),
+            ],
+          },
+          { day: 2, meals: [meal("dinner", "ris")] },
+        ],
+      },
+      opts(),
+    );
+    expect(normalized.ok).toBe(true);
+    if (!normalized.ok) return;
+    const onHand = parseOnHand("6 æg, halv pose spinat, smør");
+    const { recipes, maybeItems, fromFridge } = buildInventedRecipes(normalized.days, 1, onHand);
+    // Fridge items renamed + mapped; the "ekstra" line and the unlisted laks stay buys;
+    // smør is a condiment the user has, so it's neither bought nor "maybe".
+    expect(recipes[0].ingredients.map((i) => i.name)).toEqual([
+      "æg (har du)",
+      "æg ekstra",
+      "spinat (har du)",
+      "laks",
+    ]);
+    expect([...fromFridge.keys()]).toEqual(["æg (har du)", "spinat (har du)"]);
+    expect(maybeItems).toEqual([]);
   });
 });
 

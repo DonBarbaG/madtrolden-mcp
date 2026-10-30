@@ -67,6 +67,11 @@ interface PlanJson {
       lines: Array<{ name: string; estimate: number | null }>;
       total: number;
     };
+    onHand?: {
+      used: Array<{ name: string; raw: string; meals: string[] }>;
+      unused: string[];
+      short: Array<{ name: string; have: string; need: string }>;
+    };
     cookSchedule?: Array<{
       day: number;
       mealType: MealType;
@@ -128,6 +133,7 @@ export default function PlanPage() {
   const [radius, setRadius] = useState("");
   const [useAi, setUseAi] = useState(true);
   const [wishes, setWishes] = useState("");
+  const [onHand, setOnHand] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [planError, setPlanError] = useState("");
@@ -243,6 +249,7 @@ export default function PlanPage() {
           radiusKm: Number(radius) > 0 ? Number(radius) : undefined,
           ai: useAi,
           wishes: wishes.trim() || undefined,
+          onHand: onHand.trim() || undefined,
         }),
       });
       if (!res.ok) {
@@ -395,6 +402,23 @@ export default function PlanPage() {
             />
           </div>
         )}
+
+        <div style={{ marginTop: 14 }} className="field">
+          <label htmlFor="onhand">det har jeg allerede (køleskab, fryser, skab — valgfrit)</label>
+          <textarea
+            id="onhand"
+            className="input"
+            rows={3}
+            style={{ resize: "vertical" }}
+            value={onHand}
+            onChange={(e) => setOnHand(e.target.value)}
+            placeholder="fx 500 g hakket oksekød, 6 æg, halv pose spinat, rest ris"
+          />
+          <p className="meta" style={{ margin: 0 }}>
+            ugen bygges omkring det, så det bliver brugt op — det koster 0 kr, og du køber kun
+            resten.
+          </p>
+        </div>
 
         <hr className="rule" />
         <div className="grid-3">
@@ -767,6 +791,28 @@ export default function PlanPage() {
                   </span>
                 </p>
               ))}
+            </div>
+          )}
+
+          {r.onHand && (
+            <div className="card pop pop-2" style={{ marginTop: 12 }}>
+              <p className="meta">fra dit køleskab · 0 {plan.currency}</p>
+              {r.onHand.used.length === 0 && (
+                <p style={{ margin: "6px 0 0" }}>
+                  planen fik ikke brugt noget af det
+                  {plan.ai?.used ? "" : " — prøv med ai-planlægning"}
+                </p>
+              )}
+              {r.onHand.used.map((u) => (
+                <p key={u.name} style={{ margin: "4px 0" }}>
+                  {u.raw} <span className="meta">→ {u.meals.join(", ")}</span>
+                </p>
+              ))}
+              {r.onHand.unused.length > 0 && (
+                <p className="meta" style={{ marginTop: 6 }}>
+                  ikke brugt: {r.onHand.unused.join(", ")}
+                </p>
+              )}
             </div>
           )}
 

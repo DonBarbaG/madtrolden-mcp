@@ -149,6 +149,10 @@ async function planPayload(
         typeof body.wishes === "string" && body.wishes.trim() !== ""
           ? body.wishes.slice(0, 2000)
           : undefined,
+      onHand:
+        typeof body.onHand === "string" && body.onHand.trim() !== ""
+          ? body.onHand.slice(0, 2000)
+          : undefined,
     }),
   );
 

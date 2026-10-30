@@ -11,6 +11,7 @@
 
 import { baselineFractionalCost, estimatePlanBaseline, type PlanBaseline } from "./baseline";
 import { computeRecipeNutrition, type RecipeNutrition } from "./nutrition";
+import type { OnHandReport } from "./on-hand";
 import { findExcludedTag, type ScoredRecipe, type VarietyConstraints } from "./scoring";
 import type { Recipe } from "./store";
 
@@ -131,6 +132,8 @@ export interface PlanResult {
   cookSchedule?: CookBlock[];
   /** Present in AI-invent mode: condiments/seasonings outside the cap. */
   maybe?: MaybeBucket;
+  /** Present when the user said what they already have at home. */
+  onHand?: OnHandReport;
 }
 
 /** Enrich scored recipes with baseline costs and nutrition. */

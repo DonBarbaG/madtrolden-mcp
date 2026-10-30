@@ -16,6 +16,14 @@ import { searchDealsBatch } from "./api";
 import { findBaselineItem } from "./baseline";
 import type { Locale } from "./locales";
 import {
+  describeOnHand,
+  matchOnHand,
+  ON_HAND_MARK,
+  type OnHandItem,
+  type OnHandReport,
+  tallyOnHand,
+} from "./on-hand";
+import {
   assembleResult,
   type CookBlock,
   type EnrichedRecipe,
@@ -223,6 +231,8 @@ interface AiIngredientJson {
   searchTerms?: string[];
   category?: string;
   maybe?: boolean;
+  /** The model says this comes from the user's own fridge/cupboard. */
+  fromFridge?: boolean;
 }
 
 interface AiMealJson {
@@ -248,9 +258,10 @@ Regler for ingredienser:
 - category: meat, fish, dairy, produce, bakery, frozen, pantry eller other.
 - maybe: true for krydderier, olie, eddike, sennep, soja, bouillon og lignende småting folk ofte har i forvejen — de ender i en separat "måske"-kurv uden for budgettet. Salt og peber skal slet ikke listes.
 - Kostudelukkelser er ABSOLUTTE (allergi/sygdom) — må ikke forekomme i nogen ingrediens overhovedet.
+- fromFridge: true KUN for ingredienser der kommer fra brugerens eget køleskab/skab (listen "Brugeren har derhjemme"). Brug præcis det navn brugeren gav. Det koster 0 kr. Hvis en ret skal bruge mere end der er, så skriv resten som en SEPARAT ingrediens "<navn> ekstra" uden fromFridge.
 
 Svar KUN med gyldig JSON i præcis denne form:
-{"days":[{"day":1,"meals":[{"mealType":"dinner","name":"<kort retnavn>","leftoverOf":null,"ingredients":[{"name":"...","quantity":"400 g","searchTerms":["..."],"category":"produce","maybe":false}]}]}],"reasoning":"2-4 sætninger om dine valg og hvor pengene spares","tips":["korte praktiske råd"]}`;
+{"days":[{"day":1,"meals":[{"mealType":"dinner","name":"<kort retnavn>","leftoverOf":null,"ingredients":[{"name":"...","quantity":"400 g","searchTerms":["..."],"category":"produce","maybe":false,"fromFridge":false}]}]}],"reasoning":"2-4 sætninger om dine valg og hvor pengene spares","tips":["korte praktiske råd"]}`;
 
 export interface InventInput {
   opts: PlanWeekOptions;
@@ -261,6 +272,8 @@ export interface InventInput {
   maxCookMinutes?: number;
   /** Hard radius filter: only these chains may supply deals (null = off). */
   allowedStores?: Set<string> | null;
+  /** Food the user already has (opt-in): meals are built around it, it costs 0. */
+  onHand?: OnHandItem[];
 }
 
 function buildUserPrompt(
@@ -298,6 +311,11 @@ function buildUserPrompt(
   if (pantrySet.size > 0) {
     parts.push(
       `Brugeren HAR allerede (gratis, brug dem gerne): ${[...pantrySet].sort().join(", ")}.`,
+    );
+  }
+  if (input.onHand && input.onHand.length > 0) {
+    parts.push(
+      `Brugeren har derhjemme (køleskab/skab — GRATIS): ${describeOnHand(input.onHand)}. Byg ugen OMKRING disse varer så de bliver brugt op, friske/letfordærvelige varer i de første dage. Brug dem i alt ikke i større mængde end angivet (summeret over hele planen). Køb kun det der mangler.`,
     );
   }
   if (wishes?.trim()) {
@@ -391,23 +409,52 @@ function toIngredient(i: AiIngredientJson): Ingredient {
   };
 }
 
-/** Invented meals → Recipe objects (maybe-items stripped into the bucket). */
+type SortedIngredient =
+  | { kind: "core" | "maybe"; ing: Ingredient }
+  | { kind: "fridge"; ing: Ingredient; item: OnHandItem }
+  | { kind: "skip" };
+
+/** One raw model ingredient → buy it, maybe-basket it, or take it from the fridge. */
+function sortIngredient(raw: AiIngredientJson, onHand: OnHandItem[]): SortedIngredient {
+  const ing = toIngredient(raw);
+  const maybe = isMaybeIngredient({ ...raw, name: ing.name });
+  const item = raw.fromFridge === true ? matchOnHand(ing, onHand) : null;
+  if (item) {
+    if (maybe) return { kind: "skip" }; // have it — not even "maybe"
+    return { kind: "fridge", ing: { ...ing, name: `${item.name}${ON_HAND_MARK}` }, item };
+  }
+  return { kind: maybe ? "maybe" : "core", ing };
+}
+
+/** Invented meals → Recipe objects (maybe-items stripped into the bucket).
+ * With `onHand`, ingredients the model flagged fromFridge — and that really
+ * ARE one of the user's items — are renamed "<item> (har du)" so they're
+ * free (via the have-set) and recognisable everywhere downstream. A flag on
+ * something the user never listed is ignored: it gets priced like any buy. */
 export function buildInventedRecipes(
   days: NormalizedDays,
   people: number,
-): { recipes: Recipe[]; maybeItems: Array<{ name: string; searchTerms: string[] }> } {
+  onHand: OnHandItem[] = [],
+): {
+  recipes: Recipe[];
+  maybeItems: Array<{ name: string; searchTerms: string[] }>;
+  /** Marked ingredient name → the on-hand item it draws from. */
+  fromFridge: Map<string, OnHandItem>;
+} {
   const byName = new Map<string, Recipe>();
   const maybeItems: Array<{ name: string; searchTerms: string[] }> = [];
+  const fromFridge = new Map<string, OnHandItem>();
   for (const dayMeals of days) {
     for (const meal of dayMeals) {
       if (meal.leftoverOf !== null || byName.has(meal.name)) continue;
       const core: Ingredient[] = [];
       for (const raw of meal.ingredients) {
-        const ing = toIngredient(raw);
-        if (isMaybeIngredient({ ...raw, name: ing.name })) {
-          maybeItems.push({ name: ing.name, searchTerms: ing.searchTerms });
-        } else {
-          core.push(ing);
+        const sorted = sortIngredient(raw, onHand);
+        if (sorted.kind === "fridge") fromFridge.set(sorted.ing.name, sorted.item);
+        if (sorted.kind === "maybe") {
+          maybeItems.push({ name: sorted.ing.name, searchTerms: sorted.ing.searchTerms });
+        } else if (sorted.kind !== "skip") {
+          core.push(sorted.ing);
         }
       }
       if (core.length === 0) continue;
@@ -425,7 +472,25 @@ export function buildInventedRecipes(
       });
     }
   }
-  return { recipes: [...byName.values()], maybeItems };
+  return { recipes: [...byName.values()], maybeItems, fromFridge };
+}
+
+/** What the plan takes from the fridge, read off the final plan days. */
+export function onHandReportFor(
+  days: PlanDay[],
+  onHand: OnHandItem[],
+  fromFridge: Map<string, OnHandItem>,
+): OnHandReport {
+  return tallyOnHand(
+    days.flatMap((d) =>
+      d.meals.map((m) => ({
+        name: m.recipe.scored.name,
+        ingredients: m.recipe.recipe.ingredients,
+      })),
+    ),
+    onHand,
+    (name) => fromFridge.get(name) ?? null,
+  );
 }
 
 // Plant-based analogs that substring-match animal patterns ("kokosMÆLK" hits
@@ -581,6 +646,7 @@ const PER_ATTEMPT_MS = 155_000;
 
 export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
   const { opts, locale, pantrySet, preferredStores } = input;
+  const onHand = input.onHand ?? [];
   const startedAt = Date.now();
 
   const allowedStores = input.allowedStores ?? null;
@@ -596,6 +662,9 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
   let repairNote: string | undefined;
   let lastError = "ai gav ugyldige svar";
   let best: { result: PlanResult; extras: AiPlanExtras } | null = null;
+  // Under budget but using more fridge food than there is — kept in case
+  // the repair round doesn't do better.
+  let overdrawn: { result: PlanResult; extras: AiPlanExtras } | null = null;
   // Kept from the latest good attempt so the trim pass can run after the loop.
   let lastGood: {
     days: NormalizedDays;
@@ -621,7 +690,13 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
       continue;
     }
 
-    const { recipes, maybeItems } = buildInventedRecipes(normalized.days, opts.people);
+    const { recipes, maybeItems, fromFridge } = buildInventedRecipes(
+      normalized.days,
+      opts.people,
+      onHand,
+    );
+    // The user's own food is free: pantry + what's really from the fridge.
+    const haveSet = new Set([...pantrySet, ...[...fromFridge.keys()].map((n) => n.toLowerCase())]);
     if (recipes.length === 0) {
       repairNote = "hvert måltid skal have mindst én rigtig ingrediens (ikke kun krydderier)";
       lastError = repairNote;
@@ -632,6 +707,7 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
     const terms = new Set<string>();
     for (const r of recipes) {
       for (const ing of r.ingredients) {
+        if (haveSet.has(ing.name.toLowerCase())) continue;
         for (const t of ing.searchTerms) terms.add(t);
       }
     }
@@ -642,7 +718,7 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
     const dealMap = new Map([...sweepMap, ...targeted]);
 
     const scored: ScoredRecipe[] = recipes.map((r) =>
-      scoreOneRecipe(r, dealMap, preferredStores, pantrySet, opts.people, locale),
+      scoreOneRecipe(r, dealMap, preferredStores, haveSet, opts.people, locale),
     );
 
     // Exclusions are absolute — a violating plan is never accepted.
@@ -666,10 +742,10 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
       }
     }
 
-    const enriched = enrichRecipes(scored, recipes, opts.people, pantrySet);
+    const enriched = enrichRecipes(scored, recipes, opts.people, haveSet);
     const enrichedByName = new Map(enriched.map((e) => [e.scored.name, e]));
 
-    const maybe = buildMaybeBucket(maybeItems, pantrySet);
+    const maybe = buildMaybeBucket(maybeItems, haveSet);
     const lowConfidence = scored.reduce(
       (n, s) => n + s.ingredients.filter((i) => i.confidence === "low").length,
       0,
@@ -681,6 +757,14 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
       const cookSchedule = opts.mealPrep ? buildCookSchedule(planDays) : undefined;
       const result = assembleResult(planDays, opts, notes, cookSchedule);
       result.maybe = maybe;
+      if (onHand.length > 0) {
+        result.onHand = onHandReportFor(planDays, onHand, fromFridge);
+        for (const s of result.onHand.short) {
+          result.notes.push(
+            `planen bruger ~${s.need} ${s.name}, du har ${s.have} — køb lidt ekstra`,
+          );
+        }
+      }
       if (lowConfidence > 0) {
         result.notes.push(
           `${lowConfidence} tilbudsmatch er usikre — priserne dér er bedste bud, ikke garantier`,
@@ -696,8 +780,19 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
       tips: response.value.tips?.slice(0, 6),
     };
     const result = buildResult(normalized.days);
-    if (result.feasible) {
+    const short = result.onHand?.short ?? [];
+    if (result.feasible && short.length === 0) {
       return { ok: true, result, extras };
+    }
+    if (result.feasible) {
+      overdrawn = { result, extras };
+      repairNote = `planen bruger mere end brugeren har derhjemme: ${short
+        .map((s) => `${s.name} ${s.need} (har ${s.have})`)
+        .join(
+          ", ",
+        )}. Brug højst det de har — skriv resten som "<navn> ekstra" uden fromFridge, eller vælg andre retter.`;
+      lastError = repairNote;
+      continue;
     }
 
     lastGood = { days: normalized.days, enrichedByName, buildResult, extras };
@@ -707,6 +802,9 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
     repairNote = `din plan blev efterregnet til ~${result.grandTotal} kr — det er ${Math.ceil(result.budgetGap)} kr OVER det hårde loft på ${opts.budget} kr. Byg billigere: flere rester (leftoverOf), billigere tilbud, mere ris/havregryn/kål/linser.`;
     lastError = repairNote;
   }
+
+  // Under budget, just a bit heavy on the fridge — the note says so honestly.
+  if (overdrawn) return { ok: true, ...overdrawn };
 
   // The model couldn't land under the cap on its own — enforce it.
   if (lastGood) {

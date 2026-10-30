@@ -144,6 +144,16 @@ function formatKcal(result: PlanResult): string[] {
   return lines;
 }
 
+function formatOnHand(result: PlanResult): string[] {
+  const o = result.onHand;
+  if (!o) return [];
+  const lines = ["\n## Fra dit køleskab (0 kr)"];
+  if (o.used.length === 0) lines.push("(planen fik ikke brugt noget af det — prøv ai-mode)");
+  for (const u of o.used) lines.push(`- ${u.raw} → ${u.meals.join(", ")}`);
+  if (o.unused.length > 0) lines.push(`Ikke brugt: ${o.unused.join(", ")}`);
+  return lines;
+}
+
 export function formatPlanResult(
   result: PlanResult,
   currency: string,
@@ -154,6 +164,7 @@ export function formatPlanResult(
   return [
     ...formatDays(result, currency),
     ...formatCookSchedule(result),
+    ...formatOnHand(result),
     ...noteLines,
     ...formatKcal(result),
     ...formatShoppingByStore(result, currency, nearby),
@@ -166,7 +177,7 @@ export function formatPlanResult(
 export function registerPlannerTools(server: McpServer): void {
   server.tool(
     "plan_week",
-    "Plan a week of meals under a HARD budget cap (DKK), optimized around live Danish grocery deals, with optional kcal targets per person. Totals = deal items + estimated staples (labeled). If the budget is infeasible, returns the cheapest valid plan, the gap in kr, and what to relax — it never silently blows the cap. USE WHEN: 'feed 2 people for 400 kr this week', budget meal planning, kcal-aware planning. NOT FOR: quick deal lookups (search_deals) or plain no-budget planning (plan_and_shop).",
+    "Plan a week of meals under a HARD budget cap (DKK), optimized around live Danish grocery deals, with optional kcal targets per person. Totals = deal items + estimated staples (labeled). If the budget is infeasible, returns the cheapest valid plan, the gap in kr, and what to relax — it never silently blows the cap. USE WHEN: 'feed 2 people for 400 kr this week', budget meal planning, kcal-aware planning, 'use up what's in my fridge' (pass on_hand). NOT FOR: quick deal lookups (search_deals) or plain no-budget planning (plan_and_shop).",
     {
       budget: z.number().positive().describe("Hard cap on the estimated register total, in DKK"),
       people: z
@@ -254,6 +265,13 @@ export function registerPlannerTools(server: McpServer): void {
         .describe(
           'Free-text wishes for the AI planner, e.g. "mere fisk, ingen supper, nem hverdagsmad"',
         ),
+      on_hand: z
+        .string()
+        .max(2000)
+        .optional()
+        .describe(
+          'What the user already has in the fridge/freezer/cupboard, free text with optional amounts, e.g. "500 g hakket oksekød, 6 æg, halv pose spinat". The week is built around it (used up first), it costs 0, and only what is missing goes on the shopping list. Ask the user what they have before planning if they mention leftovers or a full fridge.',
+        ),
     },
     async ({
       budget,
@@ -273,11 +291,13 @@ export function registerPlannerTools(server: McpServer): void {
       maxSlowDays,
       ai,
       wishes,
+      on_hand,
     }) => {
       try {
         const outcome = await runPlanWeek({
           ai,
           wishes,
+          onHand: on_hand,
           budget,
           people,
           days,

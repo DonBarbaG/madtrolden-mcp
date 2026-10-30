@@ -6,6 +6,7 @@ import { aiAvailable } from "./ai";
 import { type AiPlanExtras, aiInventWeek } from "./ai-invent";
 import { getLocale } from "./locales";
 import { findStoresNear, type NearbyStores } from "./location";
+import { matchOnHand, type OnHandItem, parseOnHand, tallyOnHand } from "./on-hand";
 import {
   type EnrichedRecipe,
   enrichRecipes,
@@ -14,6 +15,7 @@ import {
   type PlanWeekOptions,
   planWeek,
 } from "./planner";
+import { findExcludedTag, parseQuantity, type ScoredIngredient } from "./scoring";
 import * as store from "./store";
 import { scoreAllRecipes } from "./tools/scoring";
 
@@ -42,6 +44,10 @@ export interface PlanRequest {
   ai?: boolean;
   /** Free-text wishes passed to the AI planner ("mere fisk, ingen supper"). */
   wishes?: string;
+  /** What the user already has at home, free text ("500 g hakket oksekød,
+   * 6 æg, halv pose spinat"). Opt-in: the week is built around it, it costs
+   * 0 kr, and only what's missing lands on the shopping list. */
+  onHand?: string;
 }
 
 export type PlanServiceOutcome =
@@ -86,6 +92,33 @@ function pushRadiusNote(
       `kun butikker inden for ${nearby.radiusKm} km er brugt (${[...allowedStores].sort().join(", ")})`,
     );
   }
+}
+
+/** Drop on-hand items that break an (absolute) dietary exclusion. */
+function onHandWithinDiet(
+  items: OnHandItem[],
+  opts: PlanWeekOptions,
+): { kept: OnHandItem[]; dropped: string[] } {
+  const exclusions = opts.constraints.excludeProteins ?? [];
+  if (exclusions.length === 0) return { kept: items, dropped: [] };
+  const kept: OnHandItem[] = [];
+  const dropped: string[] = [];
+  for (const item of items) {
+    const asIngredient = [{ name: item.name }] as ScoredIngredient[];
+    if (findExcludedTag(asIngredient, exclusions, opts.constraints.ingredientTags)) {
+      dropped.push(item.name);
+    } else {
+      kept.push(item);
+    }
+  }
+  return { kept, dropped };
+}
+
+/** Scale a library quantity ("400 g" for 4 servings) to one household meal. */
+function scaledQuantity(quantity: string, servings: number, people: number): string {
+  const parsed = parseQuantity(quantity);
+  if (!parsed || servings <= 0) return quantity;
+  return `${Math.round(((parsed.amount * people) / servings) * 100) / 100} ${parsed.unit}`;
 }
 
 export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome> {
@@ -140,6 +173,14 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     },
   };
 
+  const parsedOnHand = req.onHand ? parseOnHand(req.onHand) : [];
+  const { kept: onHand, dropped: onHandDropped } = onHandWithinDiet(parsedOnHand, opts);
+  const pushOnHandNotes = (notes: string[]) => {
+    if (onHandDropped.length > 0) {
+      notes.push(`ikke brugt fra køleskabet (bryder kostvalget): ${onHandDropped.join(", ")}`);
+    }
+  };
+
   // AI mode: GPT INVENTS the week's meals from the actual deals — no recipe
   // library involved. The deterministic engine re-prices every invented
   // ingredient, so no number is the model's word alone. Any failure (no key,
@@ -157,9 +198,11 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
         preferredStores,
         maxCookMinutes: req.maxCookMinutes,
         allowedStores,
+        onHand,
       });
       if (aiOutcome.ok) {
         pushRadiusNote(aiOutcome.result.notes, nearby, allowedStores);
+        pushOnHandNotes(aiOutcome.result.notes);
         return {
           ok: true,
           result: aiOutcome.result,
@@ -174,14 +217,29 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
 
   // Deterministic library path (non-AI mode, and the AI fallback).
   const recipes = await store.getRecipes();
+  // On-hand food is free here too: any library ingredient that IS one of the
+  // user's items joins the have-set, so recipes using it come out cheaper and
+  // the planner leans toward them.
+  const haveSet = new Set(pantrySet);
+  const onHandByIngredient = new Map<string, OnHandItem>();
+  if (onHand.length > 0) {
+    for (const recipe of recipes) {
+      for (const ing of recipe.ingredients) {
+        const item = matchOnHand(ing, onHand);
+        if (!item) continue;
+        haveSet.add(ing.name.toLowerCase());
+        onHandByIngredient.set(ing.name, item);
+      }
+    }
+  }
   const { scored } = await scoreAllRecipes(
     preferredStores,
-    pantrySet,
+    haveSet,
     householdSize,
     locale,
     allowedStores,
   );
-  let pool: EnrichedRecipe[] = enrichRecipes(scored, recipes, householdSize, pantrySet);
+  let pool: EnrichedRecipe[] = enrichRecipes(scored, recipes, householdSize, haveSet);
 
   if (req.maxCookMinutes !== undefined) {
     pool = pool.filter((e) => {
@@ -203,6 +261,25 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
   }
 
   pushRadiusNote(result.notes, nearby, allowedStores);
+  if (onHand.length > 0) {
+    result.onHand = tallyOnHand(
+      result.days.flatMap((d) =>
+        d.meals.map((m) => ({
+          name: m.recipe.scored.name,
+          ingredients: m.recipe.recipe.ingredients.map((i) => ({
+            name: i.name,
+            quantity: scaledQuantity(i.quantity, m.recipe.recipe.servings, householdSize),
+          })),
+        })),
+      ),
+      onHand,
+      (name) => onHandByIngredient.get(name) ?? null,
+    );
+    for (const s of result.onHand.short) {
+      result.notes.push(`planen bruger ~${s.need} ${s.name}, du har ${s.have} — køb lidt ekstra`);
+    }
+  }
+  pushOnHandNotes(result.notes);
   if (aiExtras?.error) {
     result.notes.push(
       `ai-laget kunne ikke bruges (${aiExtras.error}) — deterministisk plan i stedet`,

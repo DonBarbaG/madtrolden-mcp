@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 52.8 / 55 done — ~96%** (task-count, each item = 1; item 47 ~90%; last updated 2026-08-04)
+**Progress: 55.8 / 59 done — ~95%** (task-count, each item = 1; item 47 ~90%; last updated 2026-10-30)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -100,6 +100,13 @@ Session 1 (2026-08-03) shipped items 1–33 in ~1.5 h wall — far under the 17�
 - [x] 53. Rebrand [me] ⏾ — madtrolden → **nemt og billigt** (titel nemtogbilligt.app); gpt-image-2-logo (indkøbskurv med ærtebælg-smil) som public/logo.png + app/icon.png favicon; headers på / og /plan. Repo/domæne/internals uændret.
 - [x] 54. Deploy [me] — prod kører rebranded build (madtrolden-mcp.vercel.app).
 - [ ] 55. Domæne [you] — nemtogbilligt.vercel.app-alias er sat men bag Vercels SSO-beskyttelse; tilføj det som project domain i Vercel-dashboardet (Settings → Domains, gratis, 1 min) — eller køb nemtogbilligt.app (koster penge, din beslutning).
+
+## PHASE 12 — det har jeg allerede (plottet ind 2026-10-30: "type what you have in your fridge and it will pair it with whatever you want to buy or you have in your cupboards")
+
+- [x] 56. On-hand-atomer [me] ⏾ — lib/on-hand.ts: fritekst → varer m. mængder (500 g / 1,5 l / 6 æg / "halv pose"), ord-match mod ingredienser, opgørelse af brugt/ubrugt/for-lidt. 15 nye tests (467 grønne).
+- [x] 57. Gennem motoren [me] ⏾ — `onHand` på PlanRequest/route/MCP `on_hand`: ai-mode bygger ugen omkring varerne (letfordærvelige først), markerer `fromFridge`, koden godkender kun ægte køleskabsvarer, 0 kr, ude af indkøbslisten; mængdetjek med reparationsrunde; deterministisk mode regner dem som gratis. Varer der bryder kostvalget fjernes med note.
+- [x] 58. UI [me] ⏾ — "det har jeg allerede"-felt + "fra dit køleskab"-kort (hvad blev brugt hvor, hvad blev ikke brugt). Live: 4 dage/2 pers → alle 5 varer brugt, 89 kr.
+- [ ] 59. DAWA er lukket [me] — api.dataforsyningen.dk svarer 410 Gone (opdaget 2026-10-30): adresse → nærmeste butikker/radius virker ikke i prod. Skift geocoder (geo.ts) til efterfølgeren.
 
 ## INBOX — unsorted brain-dumps
 
