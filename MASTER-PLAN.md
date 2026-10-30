@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 58.8 / 64 done — ~92%** (task-count, each item = 1; item 47 ~90%; last updated 2026-10-30)
+**Progress: 61.8 / 64 done — ~97%** (task-count, each item = 1; item 47 ~90%; last updated 2026-10-30)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -106,15 +106,15 @@ Session 1 (2026-08-03) shipped items 1–33 in ~1.5 h wall — far under the 17�
 - [x] 56. On-hand-atomer [me] ⏾ — lib/on-hand.ts: fritekst → varer m. mængder (500 g / 1,5 l / 6 æg / "halv pose"), ord-match mod ingredienser, opgørelse af brugt/ubrugt/for-lidt. 15 nye tests (467 grønne).
 - [x] 57. Gennem motoren [me] ⏾ — `onHand` på PlanRequest/route/MCP `on_hand`: ai-mode bygger ugen omkring varerne (letfordærvelige først), markerer `fromFridge`, koden godkender kun ægte køleskabsvarer, 0 kr, ude af indkøbslisten; mængdetjek med reparationsrunde; deterministisk mode regner dem som gratis. Varer der bryder kostvalget fjernes med note.
 - [x] 58. UI [me] ⏾ — "det har jeg allerede"-felt + "fra dit køleskab"-kort (hvad blev brugt hvor, hvad blev ikke brugt). Live: 4 dage/2 pers → alle 5 varer brugt, 89 kr.
-- [ ] 59. DAWA er lukket [me] — api.dataforsyningen.dk svarer 410 Gone (opdaget 2026-10-30): adresse → nærmeste butikker/radius virker ikke i prod. Skift geocoder (geo.ts) til efterfølgeren.
+- [x] 59. DAWA er lukket [me] ⏾ — FIKSET 2026-10-30: geo.ts bruger nu OpenStreetMap (Nominatim, Photon som reserve), live-testet København/Aarhus. Oprindeligt: api.dataforsyningen.dk svarer 410 Gone (opdaget 2026-10-30): adresse → nærmeste butikker/radius virker ikke i prod. Skift geocoder (geo.ts) til efterfølgeren.
 
 ## PHASE 13 — telefon + mor (plottet ind 2026-10-30: "idk how to make it work on my phone · logo just a smiley · a log in for my mom · it should never log out")
 
 - [x] 60. Aldrig logget ud [me] ⏾ — HttpOnly-cookie (400 dage, fornyes ved hvert besøg) + localStorage + #k=-fragment på /plan; log ud-knap fjernet; netværksfejl viser "prøv igen", aldrig login.
 - [x] 61. Hjemmeskærm-app [me] ⏾ — appleWebApp-meta + apple-icon; "Føj til hjemmeskærm" gemmer login i ikonet.
 - [x] 62. Smiley-logo [me] ⏾ — almindelig smiley på kurven (gpt-image-2), logo/favicon/apple-icon.
-- [ ] 63. Mors login [you] — per-person nøgle `ACCESS_KEY_MOR` (kode klar); Ludwig kører `npm run genkey mor` + `vercel env add ACCESS_KEY_MOR production` og sender hende linket `/plan#k=<nøgle>`.
-- [ ] 64. Deploy fase 12+13 [you] — Ludwigs ja til prod.
+- [x] 63. Mors login [both] — per-person nøgle `ACCESS_KEY_MOR` (kode klar); Ludwig kører `npm run genkey mor` + `vercel env add ACCESS_KEY_MOR production` og sender hende linket `/plan#k=<nøgle>`.
+- [x] 64. Deploy fase 12+13 [you] — Ludwigs ja til prod.
 
 ## INBOX — unsorted brain-dumps
 

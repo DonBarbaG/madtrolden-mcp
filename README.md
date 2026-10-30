@@ -16,7 +16,7 @@ Family setup guide: **[ONBOARDING.md](ONBOARDING.md)** (Danish).
 | Nutrition targets | `plan_week` | kcal/person/day target (±10%), scaled by the share of the day the planned meals cover; per-100g macros from Frida/DTU; un-scored ingredients reported |
 | Breakfast + lunch | `plan_week` | 10 + 10 Danish starter templates (`data/breakfast-lunch.json`), `mealType` on all recipes |
 | Meal prep | `plan_week` | `meal_prep=true`: cooking consolidated onto cook days (default day 1+4), batchable recipes preferred, portions scaled, every leftover scheduled as a real meal |
-| Location awareness | `find_stores_near`, `plan_week` | DAWA geocoding + Tjek branch data: branches near an address with distances; nearby chains rank higher; shopping list shows nearest branch per store |
+| Location awareness | `find_stores_near`, `plan_week` | OpenStreetMap geocoding (Nominatim, Photon fallback) + Tjek branch data: branches near an address with distances; nearby chains rank higher; shopping list shows nearest branch per store |
 | Client-held profiles | `import_profile`, `export_profile` | The server stores nothing — the client AI keeps the profile blob between sessions |
 | Account info | `whoami` | Which key you're connected with, and whether a profile is loaded |
 
@@ -42,7 +42,7 @@ Vercel (region arn1) — Next.js App Router
         ▼
 External (all free, all server-side):
   api.etilbudsavis.dk/v2 ....... deals, dealers, store branches (unofficial Tjek API)
-  api.dataforsyningen.dk ....... DAWA — official Danish geocoding, no key
+  nominatim.openstreetmap.org .. geocoding, no key (photon.komoot.io fallback)
   (build-time only) DTU Data ... Frida food composition → data/nutrition.json
 ```
 
@@ -96,7 +96,7 @@ The generated JSON is committed, so deploys never depend on external sites.
 - **[tilbudstrolden-mcp](https://github.com/olgasafonova/tilbudstrolden-mcp)** by Olga Safonova — the entire foundation: Tjek API client, recipe scoring, locales, shopping lists, 32 starter recipes, 380 tests. MIT license, kept intact ([LICENSE](LICENSE)).
 - **[eTilbudsavis / Tjek](https://etilbudsavis.dk)** — deal and store-branch data via their unofficial public API. This server caches aggressively and backs off on errors to stay a polite citizen.
 - **[Frida — The Danish Food Composition Database](https://frida.fooddata.dk) v6.1**, DTU Fødevareinstituttet, DOI [10.11583/DTU.32312844](https://doi.org/10.11583/DTU.32312844), CC BY 4.0 — nutrition data (`data/nutrition.json` is a derived subset).
-- **[DAWA](https://api.dataforsyningen.dk)** (Danmarks Adressers Web API), Klimadatastyrelsen — Danish address geocoding.
+- **[OpenStreetMap](https://www.openstreetmap.org/copyright)** contributors (ODbL), via Nominatim and Photon (komoot) — address geocoding. (DAWA, used until 2026, has shut down.)
 - Recipe sources as credited in the base repo (valdemarsro.dk adaptations, Nigel Ng, Maangchi, jarfors.com).
 - Baseline staple prices in `data/baseline-prices.json` are **estimates** (source: `"estimates, user-editable"`), not scraped data.
 

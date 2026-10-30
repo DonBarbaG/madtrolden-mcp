@@ -1,4 +1,4 @@
-// Location-aware store lookup: DAWA geocoding + Tjek branch data, distances
+// Location-aware store lookup: OpenStreetMap geocoding + Tjek branch data, distances
 // via haversine. Pure data out — the client AI presents it (no map rendering
 // server-side, per spec §6.5).
 

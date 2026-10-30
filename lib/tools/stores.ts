@@ -2,14 +2,14 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { DAWA_ATTRIBUTION } from "../geo";
+import { GEOCODING_ATTRIBUTION } from "../geo";
 import { findStoresNear, REGIONAL_FLYER_CAVEAT } from "../location";
 import { errorResult } from "./shared";
 
 export function registerStoreLocationTools(server: McpServer): void {
   server.tool(
     "find_stores_near",
-    "Find physical supermarket branches near a Danish address or lat,lng point, with distances in km, grouped by chain. USE WHEN: setting up preferred stores ('what's near Vesterbro?'), checking where to shop, or before location-aware planning (pass the same location to plan_week). Returns structured data — names, addresses, coordinates, distances — for the assistant to present. Denmark only (DAWA geocoding).",
+    "Find physical supermarket branches near a Danish address or lat,lng point, with distances in km, grouped by chain. USE WHEN: setting up preferred stores ('what's near Vesterbro?'), checking where to shop, or before location-aware planning (pass the same location to plan_week). Returns structured data — names, addresses, coordinates, distances — for the assistant to present. Denmark only (OpenStreetMap geocoding).",
     {
       location: z
         .string()
@@ -68,7 +68,7 @@ export function registerStoreLocationTools(server: McpServer): void {
           "Tip: use update_household to save the nearest chains as preferred stores (name + dealer id), and pass the same location to plan_week for distance-aware planning.",
         );
         lines.push(`\n_${REGIONAL_FLYER_CAVEAT}_`);
-        lines.push(`_${DAWA_ATTRIBUTION}_`);
+        lines.push(`_${GEOCODING_ATTRIBUTION}_`);
 
         return { content: [{ type: "text" as const, text: lines.join("\n") }] };
       } catch (err) {
