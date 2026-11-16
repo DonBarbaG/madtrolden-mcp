@@ -1,7 +1,8 @@
 /** Phase-5 tests: geocoding parse, haversine, branch filtering/sorting. */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { haversineKm, resolveLocation } from "./geo";
+import { haversineKm, matchScore, photonAccepts, resolveLocation } from "./geo";
+import { isGroceryChain } from "./grocery-chains";
 
 vi.mock("./api", () => ({
   getStoresNear: vi.fn(),
@@ -71,5 +72,68 @@ describe("findStoresNear", () => {
     ]);
     const result = await findStoresNear("55.667,12.545", 3);
     expect(result?.branches.map((b) => b.id)).toEqual(["inside"]);
+  });
+
+  it("groceryOnly (opt-in) drops non-food chains like JYSK", async () => {
+    vi.mocked(api.getStoresNear).mockResolvedValue([
+      branch("a", "JYSK", 55.668, 12.546),
+      branch("b", "Netto", 55.668, 12.546),
+      branch("c", "Matas", 55.668, 12.546),
+    ]);
+    const all = await findStoresNear("55.667,12.545", 3);
+    expect(all?.nearestByChain.size).toBe(3);
+    const food = await findStoresNear("55.667,12.545", 3, { groceryOnly: true });
+    expect([...(food?.nearestByChain.keys() ?? [])]).toEqual(["Netto"]);
+  });
+});
+
+describe("isGroceryChain", () => {
+  it("knows the big chains, case-insensitively, and rejects non-food", () => {
+    for (const c of [
+      "Netto",
+      "REMA 1000",
+      "føtex",
+      "lidl",
+      "MENY",
+      "SuperBrugsen",
+      "365discount",
+    ]) {
+      expect(isGroceryChain(c)).toBe(true);
+    }
+    for (const c of ["JYSK", "IKEA", "Matas", "Biltema"]) expect(isGroceryChain(c)).toBe(false);
+  });
+});
+
+describe("geocoder candidate picking", () => {
+  it("prefers the hit whose TOWN matches (Vestergade 3 Skive, not Balling)", () => {
+    const skive = {
+      road: "Vestergade",
+      house_number: "3",
+      town: "Skive",
+      postcode: "7800",
+      municipality: "Skive Kommune",
+    };
+    const balling = {
+      road: "Vestergade",
+      house_number: "3",
+      village: "Balling",
+      postcode: "7860",
+      municipality: "Skive Kommune",
+    };
+    expect(matchScore("Vestergade 3 Skive", skive)).toBeGreaterThan(
+      matchScore("Vestergade 3 Skive", balling),
+    );
+  });
+
+  it("photon fallback refuses fuzzy nonsense but accepts a real address", () => {
+    const shop = {
+      name: "Hjemme hos Rødovre Bolighus",
+      street: "Roskildevej",
+      city: "Rødovre Kommune",
+      postcode: "2610",
+    };
+    expect(photonAccepts("hjemme hos mor", shop)).toBe(false);
+    const street = { street: "Istedgade", housenumber: "50", city: "København", postcode: "1650" };
+    expect(photonAccepts("istedgade 50, københavn", street)).toBe(true);
   });
 });

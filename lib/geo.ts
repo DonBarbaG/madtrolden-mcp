@@ -47,20 +47,77 @@ export function shortLabel(parts: Record<string, string | undefined>, full: stri
   return label || full;
 }
 
+/** Lowercase word tokens ("Vestergade 3, Skive" → vestergade, 3, skive). */
+export function tokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((t) => t.length > 0);
+}
+
+/** Address fields that say WHERE a hit is (not the wider municipality). */
+const PLACE_FIELDS = [
+  "road",
+  "street",
+  "house_number",
+  "housenumber",
+  "postcode",
+  "city",
+  "town",
+  "village",
+  "hamlet",
+  "suburb",
+  "quarter",
+  "city_district",
+  "district",
+  "locality",
+  "neighbourhood",
+  "name",
+];
+
+/**
+ * How many query words a candidate's place fields contain. Used to pick
+ * among equally-ranked hits: "Vestergade 3 Skive" has a Vestergade 3 in
+ * Skive, Balling AND Roslev (all Skive Kommune) — only one has town=Skive.
+ */
+export function matchScore(query: string, parts: Record<string, string | undefined>): number {
+  const have = new Set(PLACE_FIELDS.flatMap((f) => tokens(parts[f] ?? "")));
+  return tokens(query).filter((t) => have.has(t)).length;
+}
+
+/** Best-matching candidate; ties keep the service's own ranking. */
+function pickBest<T>(
+  query: string,
+  hits: T[],
+  partsOf: (h: T) => Record<string, string | undefined>,
+): T | null {
+  let best: T | null = null;
+  let bestScore = -1;
+  for (const h of hits) {
+    const score = matchScore(query, partsOf(h));
+    if (score > bestScore) {
+      best = h;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 async function nominatim(address: string): Promise<GeoPoint | null> {
   const params = new URLSearchParams({
     q: address,
     countrycodes: "dk",
     format: "jsonv2",
     addressdetails: "1",
-    limit: "1",
+    limit: "5",
   });
   const res = await fetch(`${NOMINATIM_URL}?${params}`, {
     headers: { "user-agent": USER_AGENT, "accept-language": "da" },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Nominatim geocoding failed (${res.status})`);
-  const [hit] = (await res.json()) as NominatimRow[];
+  const hits = (await res.json()) as NominatimRow[];
+  const hit = pickBest(address, hits, (h) => h.address ?? {});
   if (!hit) return null;
   const lat = Number.parseFloat(hit.lat);
   const lng = Number.parseFloat(hit.lon);
@@ -68,17 +125,32 @@ async function nominatim(address: string): Promise<GeoPoint | null> {
   return { lat, lng, label: shortLabel(hit.address ?? {}, hit.display_name) };
 }
 
+/**
+ * Photon is fuzzy to a fault: "hjemme hos mor" lands on a furniture shop in
+ * Rødovre. As the fallback it must earn its answer — every real word (3+
+ * letters) of the query has to appear in the hit, else no match.
+ */
+export function photonAccepts(query: string, props: Record<string, string | undefined>): boolean {
+  const words = tokens(query).filter((t) => t.length >= 3 && !/^\d+$/.test(t));
+  if (words.length === 0) return false;
+  const have = new Set(PLACE_FIELDS.flatMap((f) => tokens(props[f] ?? "")));
+  return words.every((w) => have.has(w));
+}
+
 async function photon(address: string): Promise<GeoPoint | null> {
   // Denmark's bounding box keeps "Vesterbrogade" from landing abroad.
-  const params = new URLSearchParams({ q: address, limit: "1", bbox: "7.9,54.5,15.3,57.9" });
+  const params = new URLSearchParams({ q: address, limit: "5", bbox: "7.9,54.5,15.3,57.9" });
   const res = await fetch(`${PHOTON_URL}?${params}`, {
     headers: { "user-agent": USER_AGENT },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Photon geocoding failed (${res.status})`);
   const { features } = (await res.json()) as { features?: PhotonFeature[] };
-  const hit = features?.[0];
-  if (!hit) return null;
+  const danish = (features ?? []).filter(
+    (f) => (f.properties.countrycode ?? "DK").toUpperCase() === "DK",
+  );
+  const hit = pickBest(address, danish, (f) => f.properties);
+  if (!hit || !photonAccepts(address, hit.properties)) return null;
   const [lng, lat] = hit.geometry.coordinates;
   return { lat, lng, label: shortLabel(hit.properties, address) };
 }

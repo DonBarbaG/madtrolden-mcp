@@ -4,6 +4,7 @@
 
 import { aiAvailable } from "./ai";
 import { type AiPlanExtras, aiInventWeek } from "./ai-invent";
+import { listStores } from "./api";
 import { getLocale } from "./locales";
 import { findStoresNear, type NearbyStores } from "./location";
 import { matchOnHand, type OnHandItem, parseOnHand, tallyOnHand } from "./on-hand";
@@ -37,6 +38,9 @@ export interface PlanRequest {
   cookDays?: number[];
   location?: string;
   radiusKm?: number;
+  /** Chains the user picked (opt-in). With a location: only these AND within
+   * radius. Without one: only these chains, anywhere. */
+  stores?: string[];
   maxPerProtein?: number;
   maxPerCuisine?: number;
   maxSlowDays?: number;
@@ -81,11 +85,17 @@ function pushRadiusNote(
   notes: string[],
   nearby: NearbyStores | null,
   allowedStores: Set<string> | null,
+  extra: string[] = [],
 ): void {
-  if (!nearby || allowedStores === null) return;
+  notes.push(...extra);
+  if (allowedStores === null) return;
+  if (!nearby) {
+    notes.push(`kun valgte butikker er brugt (${[...allowedStores].sort().join(", ")})`);
+    return;
+  }
   if (allowedStores.size === 0) {
     notes.push(
-      `ingen kæder fundet inden for ${nearby.radiusKm} km — planen bruger kun basisvare-estimater`,
+      `ingen valgte supermarkeder inden for ${nearby.radiusKm} km — planen bruger kun basisvare-estimater`,
     );
   } else {
     notes.push(
@@ -121,6 +131,33 @@ function scaledQuantity(quantity: string, servings: number, people: number): str
   return `${Math.round(((parsed.amount * people) / servings) * 100) / 100} ${parsed.unit}`;
 }
 
+/**
+ * Tjek dealer ids for the allowed chains, so deal searches ask ONLY them
+ * (the top-8 per term are then all reachable, instead of being mostly far-
+ * away chains that the name filter throws out afterwards). Nearby branches
+ * carry their dealer id; hand-picked names resolve via the dealer list.
+ * undefined = don't narrow the search (name filter still applies).
+ */
+async function dealerIdsFor(
+  allowed: Set<string>,
+  nearby: NearbyStores | null,
+): Promise<string[] | undefined> {
+  if (allowed.size === 0) return undefined;
+  const want = new Set([...allowed].map((s) => s.toLowerCase()));
+  const ids = new Set<string>();
+  for (const [brand, branch] of nearby?.nearestByChain ?? []) {
+    if (want.has(brand.toLowerCase())) ids.add(branch.dealerId);
+  }
+  try {
+    for (const d of await listStores("DK")) {
+      if (want.has(d.name.trim().toLowerCase())) ids.add(d.id);
+    }
+  } catch {
+    // Dealer list down: fall back to the name filter alone.
+  }
+  return ids.size > 0 ? [...ids] : undefined;
+}
+
 export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome> {
   const days = req.days ?? 7;
   const meals: MealType[] = req.meals && req.meals.length > 0 ? req.meals : ["dinner"];
@@ -138,15 +175,29 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
   // store scoring boost.) No location = no filter.
   let nearby: NearbyStores | null = null;
   let allowedStores: Set<string> | null = null;
+  const locationNotes: string[] = [];
   if (req.location) {
-    nearby = await findStoresNear(req.location, req.radiusKm ?? 3);
+    nearby = await findStoresNear(req.location, req.radiusKm ?? 3, { groceryOnly: true });
     if (nearby) {
       allowedStores = new Set(nearby.nearestByChain.keys());
-      for (const brand of nearby.nearestByChain.keys()) {
-        preferredStores.add(brand);
-      }
+    } else {
+      locationNotes.push(
+        `adressen "${req.location}" blev ikke fundet — planen bruger butikker i hele landet`,
+      );
     }
   }
+  // Hand-picked chains narrow it further (case-insensitive on chain name).
+  const picked = req.stores?.map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (picked && picked.length > 0) {
+    const want = new Set(picked);
+    if (allowedStores) {
+      allowedStores = new Set([...allowedStores].filter((s) => want.has(s.toLowerCase())));
+    } else {
+      allowedStores = new Set(req.stores?.map((s) => s.trim()).filter(Boolean));
+    }
+  }
+  for (const brand of allowedStores ?? []) preferredStores.add(brand);
+  const dealerIds = allowedStores ? await dealerIdsFor(allowedStores, nearby) : undefined;
 
   const kcalList = req.kcalPerPerson?.filter((k) => Number.isFinite(k) && k > 0);
   const kcalMean =
@@ -198,10 +249,11 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
         preferredStores,
         maxCookMinutes: req.maxCookMinutes,
         allowedStores,
+        dealerIds,
         onHand,
       });
       if (aiOutcome.ok) {
-        pushRadiusNote(aiOutcome.result.notes, nearby, allowedStores);
+        pushRadiusNote(aiOutcome.result.notes, nearby, allowedStores, locationNotes);
         pushOnHandNotes(aiOutcome.result.notes);
         return {
           ok: true,
@@ -238,6 +290,7 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     householdSize,
     locale,
     allowedStores,
+    dealerIds,
   );
   let pool: EnrichedRecipe[] = enrichRecipes(scored, recipes, householdSize, haveSet);
 
@@ -260,7 +313,7 @@ export async function runPlanWeek(req: PlanRequest): Promise<PlanServiceOutcome>
     };
   }
 
-  pushRadiusNote(result.notes, nearby, allowedStores);
+  pushRadiusNote(result.notes, nearby, allowedStores, locationNotes);
   if (onHand.length > 0) {
     result.onHand = tallyOnHand(
       result.days.flatMap((d) =>

@@ -272,6 +272,8 @@ export interface InventInput {
   maxCookMinutes?: number;
   /** Hard radius filter: only these chains may supply deals (null = off). */
   allowedStores?: Set<string> | null;
+  /** Opt-in: Tjek dealer ids for allowedStores, so searches ask only them. */
+  dealerIds?: string[];
   /** Food the user already has (opt-in): meals are built around it, it costs 0. */
   onHand?: OnHandItem[];
 }
@@ -651,7 +653,7 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
 
   const allowedStores = input.allowedStores ?? null;
   const sweepMap = filterDealMapToStores(
-    await searchDealsBatch(SWEEP_TERMS, 8, locale.country),
+    await searchDealsBatch(SWEEP_TERMS, 8, locale.country, input.dealerIds),
     allowedStores,
   );
   const catalog = buildDealCatalog(sweepMap);
@@ -712,7 +714,7 @@ export async function aiInventWeek(input: InventInput): Promise<AiPlanOutcome> {
       }
     }
     const targeted = filterDealMapToStores(
-      await searchDealsBatch([...terms].slice(0, 150), 8, locale.country),
+      await searchDealsBatch([...terms].slice(0, 150), 8, locale.country, input.dealerIds),
       allowedStores,
     );
     const dealMap = new Map([...sweepMap, ...targeted]);

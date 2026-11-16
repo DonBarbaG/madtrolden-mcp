@@ -4,6 +4,7 @@
 
 import { getStoresNear, type StoreBranch } from "./api";
 import { type GeoPoint, haversineKm, resolveLocation } from "./geo";
+import { isGroceryChain } from "./grocery-chains";
 
 export interface BranchWithDistance extends StoreBranch {
   distanceKm: number;
@@ -21,12 +22,22 @@ export interface NearbyStores {
  * All branches within radius of a location (address text or "lat,lng"),
  * distance-sorted. Returns null when the location can't be resolved.
  */
-export async function findStoresNear(location: string, radiusKm = 3): Promise<NearbyStores | null> {
+export interface FindStoresOptions {
+  /** Turn ON to keep only grocery chains (drops JYSK, Matas, IKEA…). */
+  groceryOnly?: boolean;
+}
+
+export async function findStoresNear(
+  location: string,
+  radiusKm = 3,
+  options: FindStoresOptions = {},
+): Promise<NearbyStores | null> {
   const origin = await resolveLocation(location);
   if (!origin) return null;
 
   const raw = await getStoresNear(origin.lat, origin.lng, radiusKm);
   const branches = raw
+    .filter((b) => !options.groceryOnly || isGroceryChain(b.brand))
     .map((b) => ({ ...b, distanceKm: Math.round(haversineKm(origin, b) * 10) / 10 }))
     .filter((b) => b.distanceKm <= radiusKm)
     .sort((a, b) => a.distanceKm - b.distanceKm || a.brand.localeCompare(b.brand));

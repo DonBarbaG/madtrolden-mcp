@@ -271,8 +271,16 @@ export function clearDealerCache(): void {
   dealerCacheByCountry.clear();
 }
 
-export async function searchDeals(query: string, limit = 20, countryId = "DK"): Promise<Offer[]> {
-  const cacheKey = `${countryId}|${limit}|${query.toLowerCase()}`;
+export async function searchDeals(
+  query: string,
+  limit = 20,
+  countryId = "DK",
+  /** Opt-in: only these Tjek dealer ids (the API filters server-side, so the
+   * `limit` results are all from chains the user can actually reach). */
+  dealerIds?: string[],
+): Promise<Offer[]> {
+  const dealers = dealerIds && dealerIds.length > 0 ? [...new Set(dealerIds)].sort() : null;
+  const cacheKey = `${countryId}|${limit}|${query.toLowerCase()}${dealers ? `|${dealers.join(",")}` : ""}`;
   return searchCache.getOrFetch(cacheKey, async () => {
     // Request extra to compensate for filtering non-matching results
     const params = new URLSearchParams({
@@ -280,6 +288,7 @@ export async function searchDeals(query: string, limit = 20, countryId = "DK"): 
       limit: String(limit * 3),
       country_id: countryId,
     });
+    if (dealers) params.set("dealer_ids", dealers.join(","));
     const raw = await fetchJson<RawOffer[]>(`${BASE_URL}/offers/search?${params}`);
 
     if (countryId === "DK") {
@@ -322,10 +331,11 @@ export async function searchDealsBatch(
   queries: string[],
   limit = 5,
   countryId = "DK",
+  dealerIds?: string[],
 ): Promise<Map<string, Offer[]>> {
   const unique = [...new Set(queries)];
   const tasks = unique.map((q) => async () => {
-    const offers = await searchDeals(q, limit, countryId);
+    const offers = await searchDeals(q, limit, countryId, dealerIds);
     return [q, offers] as const;
   });
 
@@ -343,18 +353,11 @@ export async function getStoresNear(
   lat: number,
   lng: number,
   radiusKm: number,
-  limit = 100,
+  pageSize = 100,
+  maxPages = 10,
 ): Promise<StoreBranch[]> {
-  const cacheKey = `${lat.toFixed(3)}|${lng.toFixed(3)}|${radiusKm}|${limit}`;
+  const cacheKey = `${lat.toFixed(3)}|${lng.toFixed(3)}|${radiusKm}|${pageSize}x${maxPages}`;
   return branchesCache.getOrFetch(cacheKey, async () => {
-    const params = new URLSearchParams({
-      r_lat: String(lat),
-      r_lng: String(lng),
-      r_radius: String(Math.round(radiusKm * 1000)),
-      limit: String(limit),
-      country_id: "DK",
-    });
-
     interface RawStore {
       id: string;
       name: string | null;
@@ -368,23 +371,40 @@ export async function getStoresNear(
       dealer: { name: string | null } | null;
     }
 
-    const raw = await fetchJson<RawStore[]>(`${BASE_URL}/stores?${params}`);
+    // One page caps at 100 branches — in a city that's ~1 km of shop
+    // fronts, so a 3 km radius silently shrank to the inner 1.3 km and whole
+    // chains (MENY, Bilka…) vanished. Page with offset until the API runs dry.
     const branches: StoreBranch[] = [];
-    for (const s of raw) {
-      if (typeof s?.latitude !== "number" || typeof s?.longitude !== "number" || !s.dealer_id) {
-        continue; // schema drift: skip, don't crash
-      }
-      branches.push({
-        id: s.id,
-        name: s.name ?? "",
-        street: s.street ?? "",
-        city: s.city ?? "",
-        zip: s.zip_code ?? "",
-        lat: s.latitude,
-        lng: s.longitude,
-        dealerId: s.dealer_id,
-        brand: s.branding?.name ?? s.dealer?.name ?? "Unknown",
+    const seen = new Set<string>();
+    for (let page = 0; page < maxPages; page++) {
+      const params = new URLSearchParams({
+        r_lat: String(lat),
+        r_lng: String(lng),
+        r_radius: String(Math.round(radiusKm * 1000)),
+        limit: String(pageSize),
+        offset: String(page * pageSize),
+        country_id: "DK",
       });
+      const raw = await fetchJson<RawStore[]>(`${BASE_URL}/stores?${params}`);
+      for (const s of raw) {
+        if (typeof s?.latitude !== "number" || typeof s?.longitude !== "number" || !s.dealer_id) {
+          continue; // schema drift: skip, don't crash
+        }
+        if (seen.has(s.id)) continue;
+        seen.add(s.id);
+        branches.push({
+          id: s.id,
+          name: s.name ?? "",
+          street: s.street ?? "",
+          city: s.city ?? "",
+          zip: s.zip_code ?? "",
+          lat: s.latitude,
+          lng: s.longitude,
+          dealerId: s.dealer_id,
+          brand: s.branding?.name ?? s.dealer?.name ?? "Unknown",
+        });
+      }
+      if (raw.length < pageSize) break;
     }
     return branches;
   });
@@ -392,11 +412,6 @@ export async function getStoresNear(
 
 export async function listStores(countryId = "DK"): Promise<Dealer[]> {
   return dealersCache.getOrFetch(countryId, async () => {
-    const params = new URLSearchParams({
-      country_id: countryId,
-      limit: "100",
-    });
-
     interface RawDealer {
       id: string;
       name: string;
@@ -405,13 +420,31 @@ export async function listStores(countryId = "DK"): Promise<Dealer[]> {
       country: { id: string };
     }
 
-    const raw = await fetchJson<RawDealer[]>(`${BASE_URL}/dealers?${params}`);
-    return raw.map((d) => ({
-      id: d.id,
-      name: d.name,
-      website: d.website,
-      logoUrl: d.logo,
-      country: d.country?.id ?? countryId,
-    }));
+    // DK has 300+ dealers and a page holds 100. Reading only page one made
+    // the DK allow-list skip Netto, REMA 1000, Lidl, føtex, SPAR, MENY,
+    // SuperBrugsen, Kvickly… — every one of their offers was thrown away.
+    const PAGE = 100;
+    const MAX_PAGES = 10;
+    const all: RawDealer[] = [];
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const params = new URLSearchParams({
+        country_id: countryId,
+        limit: String(PAGE),
+        offset: String(page * PAGE),
+      });
+      const raw = await fetchJson<RawDealer[]>(`${BASE_URL}/dealers?${params}`);
+      all.push(...raw);
+      if (raw.length < PAGE) break;
+    }
+    const seen = new Set<string>();
+    return all
+      .filter((d) => d?.id && !seen.has(d.id) && seen.add(d.id))
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        website: d.website,
+        logoUrl: d.logo,
+        country: d.country?.id ?? countryId,
+      }));
   });
 }

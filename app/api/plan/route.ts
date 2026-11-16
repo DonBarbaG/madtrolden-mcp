@@ -151,6 +151,9 @@ async function planPayload(
       radiusKm: num(body.radiusKm)
         ? Math.min(25, Math.max(1, num(body.radiusKm) as number))
         : undefined,
+      stores: Array.isArray(body.stores)
+        ? (body.stores.filter((x) => typeof x === "string").slice(0, 40) as string[])
+        : undefined,
       ai: body.ai === true,
       wishes:
         typeof body.wishes === "string" && body.wishes.trim() !== ""

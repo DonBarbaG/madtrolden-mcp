@@ -118,6 +118,27 @@ function rememberKey(key: string): void {
   }
 }
 
+interface StoreChain {
+  brand: string;
+  distanceKm: number | null;
+  branch: string | null;
+}
+
+/** Per-device memory for address, radius and switched-off chains. */
+const PREFS_KEY = "madtrolden-stores";
+function loadPrefs(): { location?: string; radius?: string; skipped?: string[] } {
+  try {
+    return JSON.parse(window.localStorage.getItem(PREFS_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+function savePrefs(p: { location: string; radius: string; skipped: string[] }): void {
+  try {
+    window.localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+  } catch {}
+}
+
 export default function PlanPage() {
   const [key, setKey] = useState("");
   const [account, setAccount] = useState<string | null>(null);
@@ -144,6 +165,13 @@ export default function PlanPage() {
   const [mealPrep, setMealPrep] = useState(false);
   const [location, setLocation] = useState("");
   const [radius, setRadius] = useState("");
+  // Store picker: chains near the address (or every grocery chain without
+  // one). All ON by default; tapping a chip turns that chain OFF.
+  const [chains, setChains] = useState<StoreChain[]>([]);
+  const [skipped, setSkipped] = useState<string[]>([]);
+  const [storesFor, setStoresFor] = useState<string | null>(null);
+  const [storesMsg, setStoresMsg] = useState("");
+  const [storesLoading, setStoresLoading] = useState(false);
   const [useAi, setUseAi] = useState(true);
   const [wishes, setWishes] = useState("");
   const [onHand, setOnHand] = useState("");
@@ -212,6 +240,77 @@ export default function PlanPage() {
     }
   }
 
+  // Restore the remembered address/radius/off-chains once.
+  useEffect(() => {
+    const p = loadPrefs();
+    if (p.location) setLocation(p.location);
+    if (p.radius) setRadius(p.radius);
+    if (Array.isArray(p.skipped)) setSkipped(p.skipped);
+  }, []);
+
+  useEffect(() => {
+    savePrefs({ location, radius, skipped });
+  }, [location, radius, skipped]);
+
+  const lookupStores = useCallback(
+    async (loc: string, rad: string) => {
+      const query = `${loc.trim()}|${rad.trim()}`;
+      setStoresLoading(true);
+      setStoresMsg("");
+      try {
+        const params = new URLSearchParams();
+        if (loc.trim()) params.set("location", loc.trim());
+        if (Number(rad) > 0) params.set("radius", rad.trim());
+        const res = await fetch(`/api/stores?${params}`, {
+          headers: key.trim() ? { authorization: `Bearer ${key.trim()}` } : {},
+        });
+        const data = (await res.json()) as {
+          error?: string;
+          resolvedLocation: string | null;
+          radiusKm: number | null;
+          chains: StoreChain[];
+        };
+        if (!res.ok) {
+          setChains([]);
+          setStoresMsg(data.error ?? `fejl (${res.status})`);
+        } else {
+          setChains(data.chains);
+          setStoresMsg(
+            data.resolvedLocation
+              ? data.chains.length > 0
+                ? `fundet: ${data.resolvedLocation} — ${data.chains.length} supermarkeder inden for ${data.radiusKm} km`
+                : `fundet: ${data.resolvedLocation} — ingen supermarkeder inden for ${data.radiusKm} km, prøv større radius`
+              : "ingen adresse — vælg blandt alle kæder",
+          );
+        }
+        setStoresFor(query);
+      } catch {
+        setStoresMsg("ingen forbindelse — prøv igen");
+      } finally {
+        setStoresLoading(false);
+      }
+    },
+    [key],
+  );
+
+  // Load the picker after login, and again whenever address/radius settle.
+  useEffect(() => {
+    if (!account) return;
+    const query = `${location.trim()}|${radius.trim()}`;
+    if (query === storesFor) return;
+    const t = setTimeout(() => lookupStores(location, radius), 900);
+    return () => clearTimeout(t);
+  }, [account, location, radius, storesFor, lookupStores]);
+
+  function toggleChain(brand: string) {
+    setSkipped((prev) =>
+      prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand],
+    );
+  }
+
+  const pickedChains = chains.filter((c) => !skipped.includes(c.brand)).map((c) => c.brand);
+  const anySkipped = chains.some((c) => skipped.includes(c.brand));
+
   function toggleMeal(m: MealType) {
     setMeals((prev) => {
       const next = prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m];
@@ -259,6 +358,10 @@ export default function PlanPage() {
       setPlanError("vælg mindst ét måltid");
       return;
     }
+    if (chains.length > 0 && pickedChains.length === 0) {
+      setPlanError("vælg mindst ét supermarked");
+      return;
+    }
     setLoading(true);
     setPlanError("");
     setPlan(null);
@@ -282,6 +385,7 @@ export default function PlanPage() {
           mealPrep,
           location: location.trim() || undefined,
           radiusKm: Number(radius) > 0 ? Number(radius) : undefined,
+          stores: anySkipped ? pickedChains : undefined,
           ai: useAi,
           wishes: wishes.trim() || undefined,
           onHand: onHand.trim() || undefined,
@@ -727,6 +831,42 @@ export default function PlanPage() {
               onChange={(e) => setRadius(e.target.value)}
               placeholder="3"
             />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12 }} className="field">
+          <span className="field-label">
+            supermarkeder{" "}
+            {storesLoading
+              ? "(søger…)"
+              : anySkipped
+                ? `(${pickedChains.length} valgt)`
+                : "(alle valgt — tryk for at fravælge)"}
+          </span>
+          {storesMsg && (
+            <p className="meta" style={{ margin: "4px 0 8px" }}>
+              {storesMsg}
+            </p>
+          )}
+          <div className="chip-row">
+            {chains.map((c) => (
+              <button
+                key={c.brand}
+                type="button"
+                className="chip"
+                data-on={!skipped.includes(c.brand)}
+                onClick={() => toggleChain(c.brand)}
+                title={c.branch ?? undefined}
+              >
+                {c.brand}
+                {c.distanceKm !== null ? ` · ${c.distanceKm} km` : ""}
+              </button>
+            ))}
+            {anySkipped && (
+              <button type="button" className="chip" onClick={() => setSkipped([])}>
+                vælg alle
+              </button>
+            )}
           </div>
         </div>
 

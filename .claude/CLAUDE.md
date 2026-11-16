@@ -15,11 +15,11 @@ Hard rules: stateless (no user data at rest, no db/kv/blob, no fs writes outside
 
 Backend "atoms → pages" map — keep current as modules are added:
 
-- **Atoms** (single-purpose, reusable anywhere): `src/api.ts` fetchJson/parseOffer/currency+unit helpers · timing-safe key compare · token bucket · TTL map cache · haversine · zod profile schemas · `filterDealMapToStores` (hard radius, lib/scoring.ts) · `estimateDailyNeeds` (lib/nutrition-goals.ts, browser-safe pure calc) · on-hand atoms `parseOnHand`/`matchOnHand`/`tallyOnHand` (lib/on-hand.ts — fridge free text → items, ingredient match, used/unused/short report) · brand assets `public/logo.png` + `app/icon.png`.
-- **Molecules**: Tjek client (searchDeals/getStoreOffers/listStores/stores-geo) · OSM geocoder (Nominatim → Photon fallback) · nutrition lookup (alias matching) · baseline-price lookup.
+- **Atoms** (single-purpose, reusable anywhere): `src/api.ts` fetchJson/parseOffer/currency+unit helpers · timing-safe key compare · token bucket · TTL map cache · haversine · zod profile schemas · `filterDealMapToStores` (hard radius, lib/scoring.ts) · `estimateDailyNeeds` (lib/nutrition-goals.ts, browser-safe pure calc) · on-hand atoms `parseOnHand`/`matchOnHand`/`tallyOnHand` (lib/on-hand.ts — fridge free text → items, ingredient match, used/unused/short report) · `isGroceryChain`/`GROCERY_CHAINS` (lib/grocery-chains.ts, curated Tjek brand names) · geocoder pickers `matchScore`/`photonAccepts` (lib/geo.ts) · brand assets `public/logo.png` + `app/icon.png`.
+- **Molecules**: Tjek client (searchDeals w/ opt-in `dealerIds`, getStoreOffers, listStores (paged), stores-geo (paged)) · `findStoresNear` (opt-in `groceryOnly`) · store-picker chips in /plan · OSM geocoder (Nominatim → Photon fallback) · nutrition lookup (alias matching) · baseline-price lookup.
 - **Organisms**: recipe scorer (`scoring.ts`) · week planner/solver (`plan_week`) · meal-prep scheduler · shopping-list builder · AI-invent planner (`lib/ai-invent.ts`: deal sweep → GPT invents meals, no recipe library → engine re-prices; maybe-bucket for condiments; hard-cap trim; opt-in `onHand` builds the week around the user's fridge).
 - **Templates**: MCP tool registrations (`src/tools/*`) — each tool = organism(s) wired to schema'd IO.
-- **Pages**: stdio server entrypoint · `/api/mcp` HTTP endpoint · `/` landing page.
+- **Pages**: stdio server entrypoint · `/api/mcp` HTTP endpoint · `/api/plan` + `/api/stores` (UI JSON) · `/` landing page · `/plan` UI.
 
 New capability on an existing module = opt-IN attribute/flag on that module (turn ON when using), never a fork of it and never opt-out.
 

@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 61.8 / 64 done — ~97%** (task-count, each item = 1; item 47 ~90%; last updated 2026-10-30)
+**Progress: 65.8 / 69 done — ~95%** (task-count, each item = 1; item 47 ~90%; last updated 2026-11-16)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -115,6 +115,14 @@ Session 1 (2026-08-03) shipped items 1–33 in ~1.5 h wall — far under the 17�
 - [x] 62. Smiley-logo [me] ⏾ — almindelig smiley på kurven (gpt-image-2), logo/favicon/apple-icon.
 - [x] 63. Mors login [both] — per-person nøgle `ACCESS_KEY_MOR` (kode klar); Ludwig kører `npm run genkey mor` + `vercel env add ACCESS_KEY_MOR production` og sender hende linket `/plan#k=<nøgle>`.
 - [x] 64. Deploy fase 12+13 [you] — Ludwigs ja til prod.
+
+## PHASE 14 — butikkerne virker (plottet ind 2026-11-16: "does the location and getting the right supermarkets work? selecting the supermarkets too?")
+
+- [x] 65. Kæde-loftet [me] ⏾ — dealer-listen læste kun side 1 (100 af 306), så ALLE tilbud fra Netto, REMA 1000, Lidl, føtex, SPAR, MENY, SuperBrugsen, Kvickly, Løvbjerg blev smidt væk. Pager nu hele listen.
+- [x] 66. Hele radius + kun mad [me] ⏾ — /stores pages (100 butikker = ~1,3 km i KBH, så MENY/Kvickly forsvandt); opt-in `groceryOnly` dropper JYSK/Matas osv. (`lib/grocery-chains.ts`); tilbudssøgning spørger kun de valgte kæder (`dealer_ids`).
+- [x] 67. Rigtig adresse [me] ⏾ — geokoderen vælger hittet hvis by matcher ("Vestergade 3 Skive" landede i Balling); Photon-fallback afviser vrøvl ("hjemme hos mor" → Rødovre møbelbutik); ukendt adresse giver en note i stedet for stille hele-landet.
+- [x] 68. Vælg supermarkeder [me] ⏾ — `/api/stores` + chips under adressen (afstand pr. kæde, alle til, tryk = fra, huskes pr. enhed); valgte kæder sendes som `stores` → hårdt filter. Verificeret lokalt: Skive + kun Lidl/REMA → plan bruger kun Lidl/REMA.
+- [ ] 69. Deploy fase 14 [you] — Ludwigs ja til prod (push til main).
 
 ## INBOX — unsorted brain-dumps
 

@@ -24,7 +24,7 @@ export function registerStoreLocationTools(server: McpServer): void {
     },
     async ({ location, radius_km }) => {
       try {
-        const nearby = await findStoresNear(location, radius_km);
+        const nearby = await findStoresNear(location, radius_km, { groceryOnly: true });
         if (!nearby) {
           return errorResult(
             `Could not resolve "${location}" to a Danish location. Try a fuller address (street + number + city) or "lat,lng".`,

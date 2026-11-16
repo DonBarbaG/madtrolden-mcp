@@ -94,6 +94,8 @@ export async function scoreAllRecipes(
   locale?: Locale,
   /** Hard radius filter: only chains in this set may supply deals (opt-in). */
   allowedStores?: Set<string> | null,
+  /** Opt-in: ask Tjek for only these dealers' offers (pairs with allowedStores). */
+  dealerIds?: string[],
 ): Promise<ScoreResult> {
   const recipes = await store.getRecipes();
   if (recipes.length === 0) return { scored: [], dealMap: new Map() };
@@ -112,7 +114,7 @@ export async function scoreAllRecipes(
   // Batch fetch all deals in parallel
   const countryId = locale?.country ?? "DK";
   const dealMap = filterDealMapToStores(
-    await searchDealsBatch([...allTerms], 8, countryId),
+    await searchDealsBatch([...allTerms], 8, countryId, dealerIds),
     allowedStores ?? null,
   );
 
