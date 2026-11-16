@@ -1,6 +1,6 @@
 # madtrolden-mcp — MASTER PLAN (the one living list)
 
-**Progress: 65.8 / 69 done — ~95%** (task-count, each item = 1; item 47 ~90%; last updated 2026-11-16)
+**Progress: 66.8 / 69 done — ~97%** (task-count, each item = 1; item 47 ~90%; last updated 2026-11-16)
 Legend: [ ]/[x] · owner [you]/[me]/[both] · ⏾ = Claude can run unattended · ~NN% partial.
 Guiding principles (not tasks): stateless server, no user data at rest, ever · invite-only, unknown callers learn nothing · 0 kr extra spend · be a good citizen to the Tjek API · keep base repo credits + MIT intact.
 
@@ -122,7 +122,7 @@ Session 1 (2026-08-03) shipped items 1–33 in ~1.5 h wall — far under the 17�
 - [x] 66. Hele radius + kun mad [me] ⏾ — /stores pages (100 butikker = ~1,3 km i KBH, så MENY/Kvickly forsvandt); opt-in `groceryOnly` dropper JYSK/Matas osv. (`lib/grocery-chains.ts`); tilbudssøgning spørger kun de valgte kæder (`dealer_ids`).
 - [x] 67. Rigtig adresse [me] ⏾ — geokoderen vælger hittet hvis by matcher ("Vestergade 3 Skive" landede i Balling); Photon-fallback afviser vrøvl ("hjemme hos mor" → Rødovre møbelbutik); ukendt adresse giver en note i stedet for stille hele-landet.
 - [x] 68. Vælg supermarkeder [me] ⏾ — `/api/stores` + chips under adressen (afstand pr. kæde, alle til, tryk = fra, huskes pr. enhed); valgte kæder sendes som `stores` → hårdt filter. Verificeret lokalt: Skive + kun Lidl/REMA → plan bruger kun Lidl/REMA.
-- [ ] 69. Deploy fase 14 [you] — Ludwigs ja til prod (push til main).
+- [x] 69. Deploy fase 14 [you] — live 2026-11-16 via `vercel deploy --prod` (git-push deployer IKKE automatisk på dette projekt).
 
 ## INBOX — unsorted brain-dumps
 
